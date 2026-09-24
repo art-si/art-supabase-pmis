@@ -147,9 +147,7 @@
   }
   const handleOpen = async (data: TaskEditorOpenData) => {
     kind.value = data.kind
-    plans.value = (
-      await fetchPmisPlans(data.kind, { current: 1, size: 500, status: 'enabled' })
-    ).data
+    plans.value = []
     Object.assign(form, initial())
     selectedEquipment.value = []
     selectedResponsible.value = []
@@ -172,9 +170,18 @@
       title: `${data.copy ? '复制' : data.row ? '编辑' : '新增'}${kindLabel.value}任务`,
       subtitle: data.row?.taskNo || '系统将生成月度三位流水任务号',
       confirmText: '保存任务',
-      onOpen: async () => {
+      loading: true,
+      loadingText: '正在加载可用计划…',
+      onOpen: async (_openData, api) => {
         await nextTick()
         formRef.value?.clearValidate()
+        try {
+          plans.value = (
+            await fetchPmisPlans(data.kind, { current: 1, size: 500, status: 'enabled' })
+          ).data
+        } finally {
+          api.setLoading(false)
+        }
       },
       onConfirm: submit
     })

@@ -1,0 +1,1 @@
+import{Zt as e,cn as t,qn as n}from"./style-1LM43o3X.js";import{t as r}from"./task-workspace-ClUSpR9t.js";var i=t({__name:`index`,setup(t){return(t,i)=>(n(),e(r,{kind:`maintenance`,mode:`report`}))}});export{i as default};

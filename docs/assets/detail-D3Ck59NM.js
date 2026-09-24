@@ -1,1 +1,0 @@
-import{Kn as e,Xt as t,sn as n}from"./style-DeluiDJD.js";import{t as r}from"./calendar-workspace-D5g4y6XN.js";var i=n({__name:`index`,setup(n){return(n,i)=>(e(),t(r,{kind:`preventive`,mode:`detail`}))}});export{i as default};

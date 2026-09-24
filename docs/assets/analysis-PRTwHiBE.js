@@ -1,0 +1,1 @@
+import{Zt as e,cn as t,qn as n}from"./style-1LM43o3X.js";import{t as r}from"./analysis-workspace-BhENSmrX.js";var i=t({__name:`index`,setup(t){return(t,i)=>(n(),e(r,{kind:`preventive`}))}});export{i as default};

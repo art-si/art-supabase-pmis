@@ -1,0 +1,1 @@
+import{Zt as e,cn as t,qn as n}from"./style-1LM43o3X.js";import{t as r}from"./department-setting-workspace-BNCC0uSL.js";var i=t({__name:`index`,setup(t){return(t,i)=>(n(),e(r,{kind:`repair`}))}});export{i as default};

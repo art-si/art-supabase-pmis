@@ -74,6 +74,7 @@
     type BusinessWorkspaceMetric
   } from '@/components/business/business-workspace-header/index.vue'
   import BusinessTableWorkspaceActions from '@/components/business/business-table-workspace-actions/index.vue'
+  import BusinessTableIdentityCell from '@/components/business/business-table-identity-cell/index.vue'
   import type { SearchFormItem } from '@/components/core/forms/art-search-bar/index.vue'
   import type {
     ArtTableQueryExcelColumn,
@@ -221,7 +222,12 @@
       prop: 'equipment',
       label: '设备',
       minWidth: 190,
-      formatter: (r) => `${r.equipment.equipmentName} · ${r.equipment.equipmentCode}`
+      formatter: (r) => (
+        <BusinessTableIdentityCell
+          primary={r.equipment.equipmentName}
+          secondary={r.equipment.equipmentCode}
+        />
+      )
     },
     { prop: 'faultSymptom', label: '故障现象', minWidth: 240, showOverflowTooltip: true },
     {

@@ -197,9 +197,6 @@
     return true
   }
   const handleOpen = async (data: RepairDialogOpenData) => {
-    await Promise.all(
-      ['pmisRepairUrgency', 'pmisRepairStatus'].map((code) => userStore.ensureDictLoaded(code))
-    )
     Object.assign(form, initial(), { tenantId: data.tenantId || '' })
     selectedEquipment.value = []
     selectedReporters.value = []
@@ -234,9 +231,20 @@
       subtitle: data.row?.workOrderNo || '系统将在保存后生成月度流水工单号',
       confirmText: '保存工单',
       contentMaxHeight: 'calc(100vh - 150px)',
-      onOpen: async () => {
+      loading: true,
+      loadingText: '正在加载维修选项…',
+      onOpen: async (_openData, api) => {
         await nextTick()
         formRef.value?.clearValidate()
+        try {
+          await Promise.all(
+            ['pmisRepairUrgency', 'pmisRepairStatus'].map((code) =>
+              userStore.ensureDictLoaded(code)
+            )
+          )
+        } finally {
+          api.setLoading(false)
+        }
       },
       onConfirm: submit
     })

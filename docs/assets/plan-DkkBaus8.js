@@ -1,1 +1,0 @@
-import{Kn as e,Xt as t,sn as n}from"./style-DeluiDJD.js";import{t as r}from"./plan-workspace-D2mZ6J0t.js";var i=n({__name:`index`,setup(n){return(n,i)=>(e(),t(r,{kind:`maintenance`}))}});export{i as default};

@@ -275,22 +275,30 @@
       selectedConfirmers.value = employeeRows(data.row, 'confirmer')
       selectedRepairers.value = employeeRows(data.row, 'repairer')
       selectedNotifiers.value = employeeRows(data.row, 'notifier')
-      if (selectedNotifiers.value.length !== form.notifyEmployeeIds.length) {
-        selectedNotifiers.value = await resolveEmployeeSelectedData(
-          data.row.tenantId,
-          form.notifyEmployeeIds
-        )
-      }
     }
-    departmentOptions.value = await fetchPmisDepartmentTree(form.tenantId || undefined)
-    await userStore.ensureDictLoaded('pmisNotificationMethod')
+    departmentOptions.value = []
     await dialogRef.value?.handleOpen(data, {
       title: `${data.row ? '编辑' : '新增'}${title.value}`,
       subtitle: '同一部门仅保留一套有效配置',
       confirmText: '保存设置',
-      onOpen: async () => {
+      loading: true,
+      loadingText: '正在加载部门与通知方式…',
+      onOpen: async (_openData, api) => {
         await nextTick()
         formRef.value?.clearValidate()
+        try {
+          const [departments, resolvedNotifiers] = await Promise.all([
+            fetchPmisDepartmentTree(form.tenantId || undefined),
+            data.row && selectedNotifiers.value.length !== form.notifyEmployeeIds.length
+              ? resolveEmployeeSelectedData(data.row.tenantId, form.notifyEmployeeIds)
+              : Promise.resolve(selectedNotifiers.value),
+            userStore.ensureDictLoaded('pmisNotificationMethod')
+          ])
+          departmentOptions.value = departments
+          selectedNotifiers.value = resolvedNotifiers
+        } finally {
+          api.setLoading(false)
+        }
       },
       onConfirm: submit
     })
