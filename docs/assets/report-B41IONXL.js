@@ -1,1 +1,0 @@
-import{Zt as e,cn as t,qn as n}from"./style-1LM43o3X.js";import{t as r}from"./task-workspace-ClUSpR9t.js";var i=t({name:`PmisInspectionReport`,__name:`index`,setup(t){return(t,i)=>(n(),e(r,{kind:`inspection`,mode:`report`}))}});export{i as default};

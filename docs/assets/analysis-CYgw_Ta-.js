@@ -1,1 +1,0 @@
-import{Zt as e,cn as t,qn as n}from"./style-1LM43o3X.js";import{t as r}from"./analysis-workspace-BhENSmrX.js";var i=t({name:`PmisPatrolAnalysis`,__name:`index`,setup(t){return(t,i)=>(n(),e(r,{kind:`patrol`}))}});export{i as default};
