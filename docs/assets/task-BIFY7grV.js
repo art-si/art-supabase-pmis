@@ -1,0 +1,1 @@
+import{ai as e,br as t,lr as n}from"./supabase-CG-5fLOm.js";import{t as r}from"./task-workspace-Fa-JiJKo.js";var i=t({name:`PmisPatrolTask`,__name:`index`,setup(t){return(t,i)=>(e(),n(r,{kind:`patrol`,mode:`task`}))}});export{i as default};

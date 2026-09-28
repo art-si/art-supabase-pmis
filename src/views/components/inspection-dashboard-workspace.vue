@@ -23,6 +23,7 @@
     </BusinessWorkspaceHeader>
 
     <ArtSectionCard
+      :show-scrollbar="false"
       class="pmis-dashboard__surface"
       title="当日点检状态"
       :subtitle="`共 ${filteredTasks.length} 台次 · ${filterCaption}`"
