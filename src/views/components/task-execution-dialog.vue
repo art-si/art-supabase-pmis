@@ -86,6 +86,7 @@
                   </div>
                   <ArtUploadImage
                     v-model="result.photoFiles"
+                    :resource-tenant-id="task.tenantId"
                     multiple
                     :limit="4"
                     :size="84"
@@ -102,6 +103,7 @@
           ><strong>作业前图片</strong><small>记录保养前设备状态</small
           ><ArtUploadImage
             v-model="form.model.beforePhotoFiles"
+            :resource-tenant-id="task.tenantId"
             multiple
             :limit="6"
             :size="84"
@@ -111,6 +113,7 @@
           ><strong>作业后图片</strong><small>记录保养完成后的设备状态</small
           ><ArtUploadImage
             v-model="form.model.afterPhotoFiles"
+            :resource-tenant-id="task.tenantId"
             multiple
             :limit="6"
             :size="84"

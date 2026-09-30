@@ -42,10 +42,20 @@
             :tenant-id="form.tenantId"
         /></template>
         <template #faultPhotoFiles
-          ><ArtUploadImage v-model="form.faultPhotoFiles" multiple :limit="6" title="上传故障图片"
+          ><ArtUploadImage
+            v-model="form.faultPhotoFiles"
+            :resource-tenant-id="form.tenantId"
+            multiple
+            :limit="6"
+            title="上传故障图片"
         /></template>
         <template #repairPhotoFiles
-          ><ArtUploadImage v-model="form.repairPhotoFiles" multiple :limit="6" title="上传维修图片"
+          ><ArtUploadImage
+            v-model="form.repairPhotoFiles"
+            :resource-tenant-id="form.tenantId"
+            multiple
+            :limit="6"
+            title="上传维修图片"
         /></template>
       </ArtForm>
     </div>
