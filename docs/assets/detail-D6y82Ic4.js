@@ -1,1 +1,0 @@
-import{ai as e,br as t,lr as n}from"./supabase-CG-5fLOm.js";import{t as r}from"./calendar-workspace-whPhtZqb.js";var i=t({__name:`index`,setup(t){return(t,i)=>(e(),n(r,{kind:`patrol`,mode:`detail`}))}});export{i as default};

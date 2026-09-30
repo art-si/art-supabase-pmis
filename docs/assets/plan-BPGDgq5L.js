@@ -1,1 +1,0 @@
-import{ai as e,br as t,lr as n}from"./supabase-CG-5fLOm.js";import{t as r}from"./plan-workspace-Ceo_DUwI.js";var i=t({name:`PmisPatrolPlan`,__name:`index`,setup(t){return(t,i)=>(e(),n(r,{kind:`patrol`}))}});export{i as default};

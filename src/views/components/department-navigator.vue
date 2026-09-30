@@ -58,6 +58,14 @@
               <span :title="data.departmentName">{{ data.departmentName }}</span>
             </span>
           </template>
+          <template #empty>
+            <ArtEmptyState
+              title="暂无可显示内容"
+              description="请调整当前范围或稍后刷新。"
+              size="compact"
+              :visual-size="64"
+            />
+          </template>
         </ElTree>
       </ElScrollbar>
     </ArtAsyncState>
@@ -65,6 +73,7 @@
 </template>
 
 <script setup lang="ts">
+  import ArtEmptyState from '@/components/core/feedback/art-empty-state/index.vue'
   import type { ElTree } from 'element-plus'
   import TreeUtils from '@/utils/tree'
   import ArtAsyncState from '@/components/core/feedback/art-async-state/index.vue'
