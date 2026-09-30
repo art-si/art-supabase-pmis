@@ -1,0 +1,1 @@
+import{ai as e,br as t,lr as n}from"./supabase-CG-5fLOm.js";import{t as r}from"./calendar-workspace-CS_ZNhfr.js";var i=t({name:`PmisInspectionDetail`,__name:`index`,setup(t){return(t,i)=>(e(),n(r,{mode:`detail`}))}});export{i as default};

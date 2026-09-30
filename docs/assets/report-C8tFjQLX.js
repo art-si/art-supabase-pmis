@@ -1,1 +1,0 @@
-import{ai as e,br as t,lr as n}from"./supabase-CG-5fLOm.js";import{t as r}from"./task-workspace-DpxdMd2Q.js";var i=t({__name:`index`,setup(t){return(t,i)=>(e(),n(r,{kind:`maintenance`,mode:`report`}))}});export{i as default};

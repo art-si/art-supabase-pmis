@@ -1,0 +1,1 @@
+import{ai as e,br as t,lr as n}from"./supabase-CG-5fLOm.js";import{t as r}from"./task-workspace-D_fZxd60.js";var i=t({name:`PmisInspectionReport`,__name:`index`,setup(t){return(t,i)=>(e(),n(r,{kind:`inspection`,mode:`report`}))}});export{i as default};

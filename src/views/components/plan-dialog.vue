@@ -38,6 +38,8 @@
         <template #sopUrl>
           <ArtUploadFile
             v-model="form.sopUrl"
+            :resource-tenant-id="form.tenantId"
+            :disabled="!form.tenantId"
             accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/*"
             title="上传作业指导书"
             tip="支持 PDF、Office 文档或图片，作为现场执行依据"
