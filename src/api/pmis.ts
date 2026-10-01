@@ -2,6 +2,7 @@ import dayjs from 'dayjs'
 import { omit } from 'lodash-es'
 import { useSupabase } from '@/hooks'
 import TreeUtils from '@/utils/tree'
+import { resolveTenantScopeId } from '@/utils/tenant-scope-context'
 import type {
   PmisAnalysisItem,
   PmisDepartmentOption,
@@ -67,15 +68,19 @@ const normalizeTask = (task: PmisTask): PmisTask => ({
   displayStatus: displayStatus(task)
 })
 
-export async function fetchPmisDepartments(): Promise<PmisDepartmentOption[]> {
+export async function fetchPmisDepartments(tenantId?: string): Promise<PmisDepartmentOption[]> {
+  const scopedTenantId = resolveTenantScopeId(tenantId)
   const result = await responseHandle<PmisDepartmentOption[]>(
-    () =>
-      supabase
+    () => {
+      let query = supabase
         .from('mdm_production_department')
         .select('id,tenant_id,parent_id,department_code:code,department_name:name')
         .eq('enabled', true)
         .order('sort')
-        .order('name'),
+        .order('name')
+      if (scopedTenantId) query = query.eq('tenant_id', scopedTenantId)
+      return query
+    },
     { showErrorMessage: true, errorMessage: '部门与产线加载失败，请重试' }
   )
   return result.data ?? []
@@ -84,9 +89,7 @@ export async function fetchPmisDepartments(): Promise<PmisDepartmentOption[]> {
 export async function fetchPmisDepartmentTree(
   tenantId?: string
 ): Promise<PmisDepartmentTreeOption[]> {
-  const departments = (await fetchPmisDepartments()).filter(
-    (department) => !tenantId || department.tenantId === tenantId
-  )
+  const departments = await fetchPmisDepartments(tenantId)
   const treeUtils = new TreeUtils({
     idKey: 'id',
     parentKey: 'parentId',
