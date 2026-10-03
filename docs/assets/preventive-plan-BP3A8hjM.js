@@ -1,1 +1,0 @@
-import{Sr as e,dr as t,si as n}from"./supabase-DKOV2tlb.js";import{t as r}from"./plan-workspace-CtU1QSOx.js";var i=e({__name:`index`,setup(e){return(e,i)=>(n(),t(r,{kind:`preventive`}))}});export{i as default};
