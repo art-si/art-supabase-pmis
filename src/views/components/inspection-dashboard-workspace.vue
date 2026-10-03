@@ -156,6 +156,7 @@
     type BusinessWorkspaceMetric
   } from '@/components/business/business-workspace-header/index.vue'
   import { useUserStore } from '@/store/modules/user'
+  import { useTenantScopeStore } from '@/store/modules/tenant-scope'
   import {
     fetchPmisDepartmentTree,
     fetchPmisEquipmentOptions,
@@ -168,6 +169,7 @@
   } from '@pmis/api'
 
   const userStore = useUserStore()
+  const tenantScopeStore = useTenantScopeStore()
   const { getDictMap } = storeToRefs(userStore)
   const drawerRef = ref<ArtDrawerExpose<PmisTask>>()
   const settingsRef = ref<ArtDialogExpose>()
@@ -258,18 +260,21 @@
         .filter(Boolean)
         .join(' · ') || '全部设备'
   )
+  let loadVersion = 0
   const load = async (): Promise<void> => {
+    const version = ++loadVersion
     state.loading = true
     state.error = ''
     try {
-      state.tasks = await fetchPmisTaskSnapshot('inspection', {
+      const tasks = await fetchPmisTaskSnapshot('inspection', {
         dateFrom: dayjs().format('YYYY-MM-DD'),
         dateTo: dayjs().format('YYYY-MM-DD')
       })
+      if (version === loadVersion) state.tasks = tasks
     } catch {
-      state.error = '点检看板加载失败，请重试。'
+      if (version === loadVersion) state.error = '点检看板加载失败，请重试。'
     } finally {
-      state.loading = false
+      if (version === loadVersion) state.loading = false
     }
   }
   const showDetail = async (task: PmisTask): Promise<void> => {
@@ -340,16 +345,35 @@
     pause()
     resume()
   })
-  void Promise.all([
-    userStore.ensureDictLoaded('pmisTaskStatus'),
-    fetchPmisDepartmentTree(),
-    fetchPmisEquipmentOptions({ current: 1, size: 500 })
-  ])
-    .then(([, departmentTree, equipmentResult]) => {
+  let scopeLoadVersion = 0
+  const loadScopeResources = async (): Promise<void> => {
+    const version = ++scopeLoadVersion
+    ++loadVersion
+    filters.departmentId = ''
+    filters.equipmentId = ''
+    departments.value = []
+    equipment.value = []
+    state.tasks = []
+    try {
+      const [departmentTree, equipmentResult] = await Promise.all([
+        fetchPmisDepartmentTree(),
+        fetchPmisEquipmentOptions({ current: 1, size: 500 })
+      ])
+      if (version !== scopeLoadVersion) return
       departments.value = departmentTree
       equipment.value = equipmentResult.data
-    })
-    .finally(() => void load())
+    } catch {
+      // Lookup requests already show their error feedback.
+    } finally {
+      if (version === scopeLoadVersion) void load()
+    }
+  }
+  void userStore.ensureDictLoaded('pmisTaskStatus')
+  watch(
+    () => tenantScopeStore.revision,
+    () => void loadScopeResources()
+  )
+  void loadScopeResources()
 </script>
 
 <style scoped lang="scss">

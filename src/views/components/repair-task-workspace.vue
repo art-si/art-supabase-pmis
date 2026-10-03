@@ -28,6 +28,7 @@
             :api-fn="fetchData"
             :columns-factory="columnsFactory"
             :search-items="searchItems"
+            :search-bar-props="{ span: 8, labelPosition: 'top', showExpand: false, isExpand: true }"
             :header-actions="headerActions"
             header-actions-placement="workspace"
             :excel-columns="excelColumns"
@@ -83,7 +84,7 @@
   } from '@/components/core/tables/art-table-query/index.vue'
   import type { ColumnOption } from '@/types'
   import { useArtFeedback } from '@/hooks/core/useArtFeedback'
-  import { useTenantScopeStore } from '@/store/modules/tenantScope'
+  import { useTenantScopeStore } from '@/store/modules/tenant-scope'
   import { useUserStore } from '@/store/modules/user'
   import { deletePmisRepairTasks, fetchPmisRepairTasks, type PmisRepairTask } from '@pmis/api'
   import PmisDetailDrawerSections from './detail-drawer-sections.vue'
@@ -145,7 +146,12 @@
       label: '报修日期',
       key: 'dateRange',
       type: 'daterange',
-      props: { valueFormat: 'YYYY-MM-DD', rangeSeparator: '至' }
+      props: {
+        valueFormat: 'YYYY-MM-DD',
+        rangeSeparator: '至',
+        startPlaceholder: '开始日期',
+        endPlaceholder: '结束日期'
+      }
     },
     {
       label: '维修状态',

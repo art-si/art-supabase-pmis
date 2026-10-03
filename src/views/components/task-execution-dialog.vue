@@ -125,6 +125,8 @@
 </template>
 
 <script setup lang="ts">
+  import { validateArtFormForSubmit } from '@/utils/form/validate-art-form'
+  import { notifyFriendlyError } from '@/hooks/core/useArtFeedback'
   import { normalizeNullableText } from '@/utils/form/normalize'
   import { ElMessage, type FormRules } from 'element-plus'
   import type { EmployeeIntegrationItem } from '@/api/integration/employees'
@@ -273,7 +275,7 @@
   const handleSubmit = async (): Promise<boolean> => {
     if (!task.value) return false
     try {
-      await formRef.value?.validate()
+      if (!(await validateArtFormForSubmit(formRef.value))) return false
       if (form.model.results.length !== task.value.plan.items.length) {
         ElMessage.warning(`任务${itemNoun.value}不完整，请刷新页面后重试`)
         return false
@@ -296,7 +298,12 @@
         ElMessage.warning(`第 ${missingPhotoIndex + 1} 项必须上传现场图片`)
         return false
       }
+    } catch (error) {
+      notifyFriendlyError(error, '任务结果校验未完成，请稍后重试', 'warning')
+      return false
+    }
 
+    try {
       await completePmisTask({
         taskId: task.value.id,
         executorEmployeeId: form.model.executorEmployeeId,
@@ -313,7 +320,8 @@
       })
       emit('success')
       return true
-    } catch {
+    } catch (error) {
+      notifyFriendlyError(error, '任务完成提交失败，请检查执行结果和网络后重试')
       return false
     }
   }

@@ -147,6 +147,7 @@
   import BusinessWorkspaceHeader, {
     type BusinessWorkspaceMetric
   } from '@/components/business/business-workspace-header/index.vue'
+  import { useTenantScopeStore } from '@/store/modules/tenant-scope'
   import {
     analyzePmisTasks,
     fetchPmisTaskSnapshot,
@@ -159,6 +160,7 @@
   import { pmisAnalysisPermissions } from './business-permissions'
 
   const props = defineProps<{ kind: PmisPlanKind }>()
+  const tenantScopeStore = useTenantScopeStore()
   interface AnalysisQuery {
     dateRange: string[]
   }
@@ -238,18 +240,22 @@
       }
     }
   ]
+  let loadVersion = 0
   const load = async (): Promise<void> => {
+    const version = ++loadVersion
     state.loading = true
     state.error = ''
+    state.rows = []
     try {
-      state.rows = await fetchPmisTaskSnapshot(props.kind, {
+      const rows = await fetchPmisTaskSnapshot(props.kind, {
         dateFrom: query.dateRange[0],
         dateTo: query.dateRange[1]
       })
+      if (version === loadVersion) state.rows = rows
     } catch {
-      state.error = `${kindLabel.value}分析加载失败，请重试。`
+      if (version === loadVersion) state.error = `${kindLabel.value}分析加载失败，请重试。`
     } finally {
-      state.loading = false
+      if (version === loadVersion) state.loading = false
     }
   }
   const reset = (): void => {
@@ -288,6 +294,10 @@
     overdue: { title: '已延误' },
     completionRate: { title: '完成率' }
   }
+  watch(
+    () => tenantScopeStore.revision,
+    () => void load()
+  )
   void load()
 </script>
 

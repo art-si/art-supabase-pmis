@@ -3,6 +3,8 @@ import { omit } from 'lodash-es'
 import { useSupabase } from '@/hooks'
 import TreeUtils from '@/utils/tree'
 import { resolveTenantScopeId } from '@/utils/tenant-scope-context'
+import { fetchAllRangePages } from '@/utils/supabase/pagination'
+import { buildOrIlikeFilter } from '@/utils/supabase/search'
 import type {
   PmisAnalysisItem,
   PmisDepartmentOption,
@@ -24,6 +26,7 @@ import type {
 } from './types'
 
 const { supabase, keysToSnakeDeep, responseHandle } = useSupabase()
+const snapshotPageSize = 500
 
 const equipmentSelect = `
   id, tenant_id, equipment_code, equipment_name, production_department_id,
@@ -99,6 +102,7 @@ export async function fetchPmisDepartmentTree(
 }
 
 export async function fetchPmisEquipmentOptions(params: PmisPageQuery = {}) {
+  const scopedTenantId = resolveTenantScopeId(params.tenantId)
   const from = Math.max(((params.current ?? 1) - 1) * (params.size ?? 20), 0)
   const to = from + (params.size ?? 20) - 1
   let query = supabase
@@ -106,13 +110,14 @@ export async function fetchPmisEquipmentOptions(params: PmisPageQuery = {}) {
     .select(equipmentSelect, { count: 'exact' })
     .eq('status', 'enabled')
     .order('equipment_code')
+    .order('id')
     .range(from, to)
   if (params.keyword?.trim())
     query = query.or(
-      `equipment_code.ilike.%${params.keyword.trim()}%,equipment_name.ilike.%${params.keyword.trim()}%`
+      buildOrIlikeFilter(['equipment_code', 'equipment_name'], params.keyword.trim())
     )
   if (params.departmentId) query = query.eq('production_department_id', params.departmentId)
-  if (params.tenantId) query = query.eq('tenant_id', params.tenantId)
+  if (scopedTenantId) query = query.eq('tenant_id', scopedTenantId)
   const result = await responseHandle<PmisEquipmentOption[]>(() => query, {
     showErrorMessage: true,
     errorMessage: '设备列表加载失败，请重试'
@@ -121,6 +126,7 @@ export async function fetchPmisEquipmentOptions(params: PmisPageQuery = {}) {
 }
 
 export async function fetchPmisPlans(kind: PmisPlanKind, params: PmisPageQuery = {}) {
+  const scopedTenantId = resolveTenantScopeId(params.tenantId)
   const from = Math.max(((params.current ?? 1) - 1) * (params.size ?? 20), 0)
   const to = from + (params.size ?? 20) - 1
   let query = supabase
@@ -142,8 +148,10 @@ export async function fetchPmisPlans(kind: PmisPlanKind, params: PmisPageQuery =
     )
     .eq('plan_kind', kind)
     .order('update_time', { ascending: false })
+    .order('id')
     .range(from, to)
   if (params.keyword?.trim()) query = query.ilike('plan_name', `%${params.keyword.trim()}%`)
+  if (scopedTenantId) query = query.eq('tenant_id', scopedTenantId)
   if (params.status) query = query.eq('status', params.status)
   const result = await responseHandle<PmisPlan[]>(() => query, {
     showErrorMessage: true,
@@ -183,6 +191,7 @@ export async function deletePmisPlans(ids: string[], kind: PmisPlanKind) {
 }
 
 export async function fetchPmisTasks(kind: PmisPlanKind, params: PmisPageQuery = {}) {
+  const scopedTenantId = resolveTenantScopeId(params.tenantId)
   const from = Math.max(((params.current ?? 1) - 1) * (params.size ?? 20), 0)
   const to = from + (params.size ?? 20) - 1
   let query = supabase
@@ -191,11 +200,15 @@ export async function fetchPmisTasks(kind: PmisPlanKind, params: PmisPageQuery =
     .eq('plan.plan_kind', kind)
     .order('planned_date', { ascending: false })
     .order('task_no')
+    .order('id')
     .range(from, to)
   if (params.keyword?.trim()) query = query.ilike('task_no', `%${params.keyword.trim()}%`)
+  if (scopedTenantId) query = query.eq('tenant_id', scopedTenantId)
   if (params.equipmentId) query = query.eq('equipment_id', params.equipmentId)
   if (params.departmentIds?.length)
     query = query.in('equipment.production_department_id', params.departmentIds)
+  if (params.departmentId)
+    query = query.eq('equipment.production_department_id', params.departmentId)
   if (params.planId) query = query.eq('plan_id', params.planId)
   if (params.dateFrom) query = query.gte('planned_date', params.dateFrom)
   if (params.dateTo) query = query.lte('planned_date', params.dateTo)
@@ -205,15 +218,13 @@ export async function fetchPmisTasks(kind: PmisPlanKind, params: PmisPageQuery =
     query = query.eq('status', 'pending').gte('planned_date', dayjs().format('YYYY-MM-DD'))
   else if (params.status) query = query.eq('status', params.status)
   const result = await responseHandle<PmisTask[]>(() => query, {
+    breakReturn: true,
     showErrorMessage: true,
     errorMessage: `${planKindLabel(kind)}任务加载失败，请重试`
   })
-  let rows = (result.data ?? []).map(normalizeTask)
-  if (params.departmentId)
-    rows = rows.filter((row) => row.equipment?.productionDepartmentId === params.departmentId)
   return {
-    data: rows,
-    total: params.departmentId ? rows.length : (result.total ?? 0)
+    data: (result.data ?? []).map(normalizeTask),
+    total: result.total ?? 0
   }
 }
 
@@ -267,6 +278,7 @@ export async function fetchPmisDepartmentSettings(
   kind: 'maintenance' | 'repair',
   params: PmisPageQuery = {}
 ) {
+  const scopedTenantId = resolveTenantScopeId(params.tenantId)
   let query = supabase
     .from('pmis_department_setting')
     .select(
@@ -276,6 +288,7 @@ export async function fetchPmisDepartmentSettings(
     .eq('setting_kind', kind)
     .order('update_time', { ascending: false })
   if (params.departmentId) query = query.eq('department_id', params.departmentId)
+  if (scopedTenantId) query = query.eq('tenant_id', scopedTenantId)
   if (params.departmentIds?.length) query = query.in('department_id', params.departmentIds)
   const result = await responseHandle<PmisDepartmentSetting[]>(() => query, {
     showErrorMessage: true,
@@ -323,27 +336,31 @@ export async function deletePmisDepartmentSettings(
 const repairSelect = `id,tenant_id,work_order_no,urgency,fault_symptom,fault_photo_files,fault_analysis,fault_cause,solution,repair_photo_files,status,reported_at,required_complete_at,completed_at,confirmed_at,equipment:mdm_equipment!pmis_repair_task_equipment_fkey!inner(${equipmentSelect}),reporter:mdm_employee!pmis_repair_task_reporter_fkey(id,employee_no,employee_name),repairer:mdm_employee!pmis_repair_task_repairer_fkey(id,employee_no,employee_name),confirmer:mdm_employee!pmis_repair_task_confirmer_fkey(id,employee_no,employee_name)`
 
 export async function fetchPmisRepairTasks(params: PmisPageQuery = {}) {
+  const scopedTenantId = resolveTenantScopeId(params.tenantId)
   const from = Math.max(((params.current ?? 1) - 1) * (params.size ?? 20), 0)
   let query = supabase
     .from('pmis_repair_task')
     .select(repairSelect, { count: 'exact' })
     .order('reported_at', { ascending: false })
+    .order('id')
     .range(from, from + (params.size ?? 20) - 1)
   if (params.keyword?.trim())
-    query = query.or(
-      `work_order_no.ilike.%${params.keyword.trim()}%,fault_symptom.ilike.%${params.keyword.trim()}%`
-    )
+    query = query.or(buildOrIlikeFilter(['work_order_no', 'fault_symptom'], params.keyword.trim()))
+  if (scopedTenantId) query = query.eq('tenant_id', scopedTenantId)
   if (params.equipmentId) query = query.eq('equipment_id', params.equipmentId)
+  if (params.departmentIds?.length)
+    query = query.in('equipment.production_department_id', params.departmentIds)
   if (params.dateFrom) query = query.gte('reported_at', `${params.dateFrom}T00:00:00`)
   if (params.dateTo) query = query.lte('reported_at', `${params.dateTo}T23:59:59`)
   if (params.status === 'overdue')
     query = query.neq('status', 'completed').lt('required_complete_at', new Date().toISOString())
   else if (params.status) query = query.eq('status', params.status)
   const result = await responseHandle<PmisRepairTask[]>(() => query, {
+    breakReturn: true,
     showErrorMessage: true,
     errorMessage: '维修工单加载失败，请重试'
   })
-  let rows = (result.data ?? []).map((row) => ({
+  const rows = (result.data ?? []).map((row) => ({
     ...row,
     displayStatus:
       row.status !== 'completed' &&
@@ -352,13 +369,7 @@ export async function fetchPmisRepairTasks(params: PmisPageQuery = {}) {
         ? ('overdue' as const)
         : row.status
   }))
-  if (params.departmentIds?.length)
-    rows = rows.filter(
-      (row) =>
-        row.equipment?.productionDepartmentId &&
-        params.departmentIds?.includes(row.equipment.productionDepartmentId)
-    )
-  return { data: rows, total: params.departmentIds?.length ? rows.length : (result.total ?? 0) }
+  return { data: rows, total: result.total ?? 0 }
 }
 
 export async function savePmisRepairTask(input: PmisRepairTaskInput, id?: string): Promise<void> {
@@ -409,8 +420,35 @@ export async function completePmisTask(input: PmisTaskExecutionInput): Promise<v
 }
 
 export async function fetchPmisTaskSnapshot(kind: PmisPlanKind, params: PmisPageQuery = {}) {
-  const result = await fetchPmisTasks(kind, { ...params, current: 1, size: 5000 })
-  return result.data
+  const result = await fetchAllRangePages<PmisTask>(
+    async ({ from, to }) => {
+      const { data, total } = await fetchPmisTasks(kind, {
+        ...params,
+        current: Math.floor(from / snapshotPageSize) + 1,
+        size: to - from + 1
+      })
+      return { data, total, error: null }
+    },
+    { pageSize: snapshotPageSize }
+  )
+  if (result.error) throw result.error
+  return result.data ?? []
+}
+
+export async function fetchPmisRepairTaskSnapshot(params: PmisPageQuery = {}) {
+  const result = await fetchAllRangePages<PmisRepairTask>(
+    async ({ from, to }) => {
+      const { data, total } = await fetchPmisRepairTasks({
+        ...params,
+        current: Math.floor(from / snapshotPageSize) + 1,
+        size: to - from + 1
+      })
+      return { data, total, error: null }
+    },
+    { pageSize: snapshotPageSize }
+  )
+  if (result.error) throw result.error
+  return result.data ?? []
 }
 
 export function summarizePmisTasks(tasks: PmisTask[]): PmisTaskOverview {

@@ -38,7 +38,7 @@
             :header-actions="headerActions"
             header-actions-placement="workspace"
             :excel-columns="excelColumns"
-            :search-bar-props="{ span: 6, labelWidth: 72, showExpand: false, isExpand: true }"
+            :search-bar-props="{ span: 8, labelPosition: 'top', showExpand: false, isExpand: true }"
             :table-props="{ rowKey: 'id', tableLayout: 'fixed' }"
             :empty-config="{
               title: `暂无${kindLabel}任务`,

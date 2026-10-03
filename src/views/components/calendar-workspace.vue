@@ -162,6 +162,7 @@
   import type { ColumnOption } from '@/types'
   import { useAuth } from '@/hooks/core/useAuth'
   import { useUserStore } from '@/store/modules/user'
+  import { useTenantScopeStore } from '@/store/modules/tenant-scope'
   import {
     fetchPmisEquipmentOptions,
     fetchPmisTaskSnapshot,
@@ -209,6 +210,7 @@
     shiftName: ''
   })
   const query = reactive<CalendarQuery>(initialQuery())
+  const tenantScopeStore = useTenantScopeStore()
   const state = reactive<{ loading: boolean; error: string; tasks: PmisTask[] }>({
     loading: false,
     error: '',
@@ -454,22 +456,24 @@
   const matrixSubtitle = computed(
     () => `${monthCaption.value} · ${departmentLabel.value} · 单击状态单元格查看任务明细`
   )
+  let loadVersion = 0
   const load = async (): Promise<void> => {
+    const version = ++loadVersion
     state.loading = true
     state.error = ''
     try {
-      state.tasks = await fetchPmisTaskSnapshot(props.kind, {
+      let tasks = await fetchPmisTaskSnapshot(props.kind, {
         dateFrom: monthStart.value.format('YYYY-MM-DD'),
         dateTo: monthEnd.value.format('YYYY-MM-DD'),
         departmentIds: departmentIds.value,
         equipmentId: query.equipmentId || undefined
       })
-      if (query.shiftName)
-        state.tasks = state.tasks.filter((task) => task.shiftName === query.shiftName)
+      if (query.shiftName) tasks = tasks.filter((task) => task.shiftName === query.shiftName)
+      if (version === loadVersion) state.tasks = tasks
     } catch {
-      state.error = `${kindLabel.value}日历加载失败，请重试。`
+      if (version === loadVersion) state.error = `${kindLabel.value}日历加载失败，请重试。`
     } finally {
-      state.loading = false
+      if (version === loadVersion) state.loading = false
     }
   }
   const changeDepartments = (ids: string[], label: string): void => {
@@ -528,12 +532,30 @@
         ]
       : []
   )
-  void Promise.all([
-    useUserStore().ensureDictLoaded('pmisResultStatus'),
-    fetchPmisEquipmentOptions({ current: 1, size: 500 }).then((result) => {
-      equipmentOptions.value = result.data
-    })
-  ]).finally(() => void load())
+  let equipmentLoadVersion = 0
+  const loadEquipmentOptions = async (): Promise<void> => {
+    const version = ++equipmentLoadVersion
+    equipmentOptions.value = []
+    try {
+      const result = await fetchPmisEquipmentOptions({ current: 1, size: 500 })
+      if (version === equipmentLoadVersion) equipmentOptions.value = result.data
+    } catch {
+      // The equipment provider reports lookup errors.
+    }
+  }
+  void useUserStore().ensureDictLoaded('pmisResultStatus')
+  watch(
+    () => tenantScopeStore.revision,
+    () => {
+      departmentIds.value = []
+      departmentLabel.value = '全部产线'
+      query.equipmentId = ''
+      state.tasks = []
+      void loadEquipmentOptions()
+      void load()
+    }
+  )
+  void loadEquipmentOptions().then(() => void load())
 </script>
 
 <style scoped lang="scss">

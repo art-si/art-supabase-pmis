@@ -122,7 +122,8 @@
     type BusinessWorkspaceMetric
   } from '@/components/business/business-workspace-header/index.vue'
   import { useUserStore } from '@/store/modules/user'
-  import { fetchPmisRepairTasks, type PmisRepairTask } from '@pmis/api'
+  import { useTenantScopeStore } from '@/store/modules/tenant-scope'
+  import { fetchPmisRepairTaskSnapshot, type PmisRepairTask } from '@pmis/api'
   import { pmisRepairAnalysisPermission } from './business-permissions'
   const initial = () => ({
     dateRange: [
@@ -133,6 +134,7 @@
   const query = reactive(initial())
   const rows = shallowRef<PmisRepairTask[]>([])
   const userStore = useUserStore()
+  const tenantScopeStore = useTenantScopeStore()
   const loading = ref(false)
   const error = ref('')
   const dateCaption = computed(() => `${query.dateRange[0]} 至 ${query.dateRange[1]}`)
@@ -240,22 +242,22 @@
     overdue: { title: '已逾期', width: 12 },
     completionRate: { title: '闭环率', width: 14 }
   }
+  let loadVersion = 0
   const load = async () => {
+    const version = ++loadVersion
     loading.value = true
     error.value = ''
+    rows.value = []
     try {
-      rows.value = (
-        await fetchPmisRepairTasks({
-          current: 1,
-          size: 5000,
-          dateFrom: query.dateRange[0],
-          dateTo: query.dateRange[1]
-        })
-      ).data
+      const result = await fetchPmisRepairTaskSnapshot({
+        dateFrom: query.dateRange[0],
+        dateTo: query.dateRange[1]
+      })
+      if (version === loadVersion) rows.value = result
     } catch {
-      error.value = '维修分析加载失败，请重试。'
+      if (version === loadVersion) error.value = '维修分析加载失败，请重试。'
     } finally {
-      loading.value = false
+      if (version === loadVersion) loading.value = false
     }
   }
   const reset = () => {
@@ -266,6 +268,10 @@
     return rows.value.length ? Math.round((value / rows.value.length) * 100) : 0
   }
   void userStore.ensureDictLoaded('pmisRepairStatus')
+  watch(
+    () => tenantScopeStore.revision,
+    () => void load()
+  )
   void load()
 </script>
 <style scoped lang="scss">

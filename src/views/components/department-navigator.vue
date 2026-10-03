@@ -79,6 +79,7 @@
   import ArtAsyncState from '@/components/core/feedback/art-async-state/index.vue'
   import ArtIconButton from '@/components/core/widget/art-icon-button/index.vue'
   import ArtSvgIcon from '@/components/core/base/art-svg-icon/index.vue'
+  import { useTenantScopeStore } from '@/store/modules/tenant-scope'
   import { fetchPmisDepartmentTree, type PmisDepartmentTreeOption } from '@pmis/api'
 
   type TreeNode = PmisDepartmentTreeOption
@@ -89,18 +90,23 @@
   const error = ref('')
   const activeId = ref('')
   const tree = shallowRef<TreeNode[]>([])
+  const tenantScopeStore = useTenantScopeStore()
   const treeUtils = new TreeUtils({ idKey: 'id', parentKey: 'parentId', childrenKey: 'children' })
   const departmentCount = computed(() => treeUtils.treeToList(tree.value).length)
+  let loadVersion = 0
 
   const load = async (): Promise<void> => {
+    const version = ++loadVersion
     loading.value = true
     error.value = ''
+    tree.value = []
     try {
-      tree.value = await fetchPmisDepartmentTree()
+      const departments = await fetchPmisDepartmentTree()
+      if (version === loadVersion) tree.value = departments
     } catch {
-      error.value = '部门与产线加载失败，请重试。'
+      if (version === loadVersion) error.value = '部门与产线加载失败，请重试。'
     } finally {
-      loading.value = false
+      if (version === loadVersion) loading.value = false
     }
   }
   const clear = (): void => {
@@ -116,6 +122,13 @@
       node.departmentName
     )
   }
+  watch(
+    () => tenantScopeStore.revision,
+    () => {
+      clear()
+      void load()
+    }
+  )
   void load()
 </script>
 

@@ -91,7 +91,7 @@
   import type { ColumnOption } from '@/types'
   import { useAuth } from '@/hooks/core/useAuth'
   import { useArtFeedback } from '@/hooks/core/useArtFeedback'
-  import { useTenantScopeStore } from '@/store/modules/tenantScope'
+  import { useTenantScopeStore } from '@/store/modules/tenant-scope'
   import { useUserStore } from '@/store/modules/user'
   import {
     deletePmisPlans,
@@ -192,6 +192,14 @@
     rows.value = result.data
     return result
   }
+  watch(
+    () => tenantScopeStore.revision,
+    () => {
+      rows.value = []
+      total.value = 0
+      void tableRef.value?.refreshContext()
+    }
+  )
   const dialogData = (row?: PmisPlan, copy = false): PmisPlanDialogOpenData => {
     const targetTenantId = row?.tenantId || effectiveTenantId.value || undefined
     const availableTenants = targetTenantId

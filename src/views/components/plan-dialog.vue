@@ -54,6 +54,8 @@
 </template>
 
 <script setup lang="ts">
+  import { validateArtFormForSubmit } from '@/utils/form/validate-art-form'
+  import { notifyFriendlyError } from '@/hooks/core/useArtFeedback'
   import { normalizeNullableText } from '@/utils/form/normalize'
   import type { FormRules } from 'element-plus'
   import { cloneDeep } from 'lodash-es'
@@ -282,9 +284,15 @@
 
   const handleSubmit = async (): Promise<boolean> => {
     try {
-      await formRef.value?.validate()
+      if (!(await validateArtFormForSubmit(formRef.value))) return false
       const itemValidation = await itemEditorRef.value?.validate()
       if (itemValidation && !itemValidation.valid) return false
+    } catch (error) {
+      notifyFriendlyError(error, '计划校验未完成，请稍后重试', 'warning')
+      return false
+    }
+
+    try {
       await savePmisPlan(
         {
           ...cloneDeep(form),
@@ -303,7 +311,8 @@
       )
       emit('success')
       return true
-    } catch {
+    } catch (error) {
+      notifyFriendlyError(error, '计划保存失败，请检查项目和网络后重试')
       return false
     }
   }
