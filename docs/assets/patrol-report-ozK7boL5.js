@@ -1,1 +1,0 @@
-import{Sr as e,dr as t,si as n}from"./supabase-DePS8D0y.js";import{t as r}from"./task-workspace-Ct_c1evP.js";var i=e({__name:`index`,setup(e){return(e,i)=>(n(),t(r,{kind:`patrol`,mode:`report`}))}});export{i as default};

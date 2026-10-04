@@ -1,0 +1,1 @@
+import{Hr as e,Kn as t,rr as n}from"./supabase-Dls7c8IF.js";import{t as r}from"./task-workspace-B-i3cnpc.js";var i=n({__name:`index`,setup(n){return(n,i)=>(e(),t(r,{kind:`maintenance`,mode:`report`}))}});export{i as default};

@@ -1,3 +1,4 @@
+import { toDateStartTimestamp } from '@/utils/time/date-boundary'
 import dayjs from 'dayjs'
 import { omit } from 'lodash-es'
 import { useSupabase } from '@/hooks'
@@ -350,7 +351,7 @@ export async function fetchPmisRepairTasks(params: PmisPageQuery = {}) {
   if (params.equipmentId) query = query.eq('equipment_id', params.equipmentId)
   if (params.departmentIds?.length)
     query = query.in('equipment.production_department_id', params.departmentIds)
-  if (params.dateFrom) query = query.gte('reported_at', `${params.dateFrom}T00:00:00`)
+  if (params.dateFrom) query = query.gte('reported_at', toDateStartTimestamp(params.dateFrom))
   if (params.dateTo) query = query.lte('reported_at', `${params.dateTo}T23:59:59`)
   if (params.status === 'overdue')
     query = query.neq('status', 'completed').lt('required_complete_at', new Date().toISOString())

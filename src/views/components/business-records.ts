@@ -3,6 +3,7 @@ import {
   type EmployeeIntegrationItem
 } from '@/api/integration/employees'
 import type { PmisEmployeeReference } from '@pmis/api'
+import { uniq } from 'lodash-es'
 
 export const toEmployeeSelectedData = (
   tenantId: string,
@@ -20,8 +21,10 @@ export async function resolveEmployeeSelectedData(
   tenantId: string,
   employeeIds: string[]
 ): Promise<EmployeeIntegrationItem[]> {
-  const uniqueIds = [...new Set(employeeIds.filter(Boolean))]
+  const uniqueIds = uniq(employeeIds.filter(Boolean))
   if (!tenantId || uniqueIds.length === 0) return []
+
+  const selectedIds = new Set(uniqueIds)
 
   const matched = new Map<string, EmployeeIntegrationItem>()
   const pageSize = 200
@@ -35,7 +38,7 @@ export async function resolveEmployeeSelectedData(
     })
     total = result.total
     result.data.forEach((employee) => {
-      if (uniqueIds.includes(employee.id)) matched.set(employee.id, employee)
+      if (selectedIds.has(employee.id)) matched.set(employee.id, employee)
     })
     if (result.data.length === 0) break
     offset += pageSize
