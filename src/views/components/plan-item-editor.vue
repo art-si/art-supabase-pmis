@@ -120,7 +120,7 @@
     {
       prop: 'operation',
       label: '操作',
-      width: 152,
+      width: 160,
       fixed: 'right',
       formatter: (row: PmisPlanItem) => (
         <BusinessTableRowActions>
