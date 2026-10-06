@@ -31,7 +31,8 @@
     <ElScrollbar class="pmis-repair-analysis__scroll"
       ><div class="pmis-repair-analysis__body"
         ><ArtSearchBar
-          v-model="query"
+          :model-value="query"
+          @update:model-value="replaceReactiveModel(query, $event)"
           :items="searchItems"
           :span="8"
           :label-width="72"
@@ -110,6 +111,7 @@
   </div>
 </template>
 <script setup lang="ts">
+  import { replaceReactiveModel } from '@/utils/form/model'
   import dayjs from 'dayjs'
   import ArtSearchBar, {
     type SearchFormItem

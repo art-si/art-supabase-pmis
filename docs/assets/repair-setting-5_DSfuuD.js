@@ -1,0 +1,1 @@
+import{Hr as e,Kn as t,rr as n}from"./supabase-ky15Hvjw.js";import{t as r}from"./department-setting-workspace-BBK6eboG.js";var i=n({__name:`index`,setup(n){return(n,i)=>(e(),t(r,{kind:`repair`}))}});export{i as default};

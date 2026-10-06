@@ -46,7 +46,8 @@
         </template>
         <main class="pmis-calendar__content">
           <ArtSearchBar
-            v-model="query"
+            :model-value="query"
+            @update:model-value="replaceReactiveModel(query, $event)"
             :items="searchItems"
             :span="mode === 'detail' ? 6 : 8"
             :label-width="64"
@@ -142,6 +143,7 @@
 </template>
 
 <script setup lang="tsx">
+  import { replaceReactiveModel } from '@/utils/form/model'
   import dayjs from 'dayjs'
   import ArtTooltip from '@/components/core/feedback/art-tooltip/index.vue'
   import ArtDescriptions from '@/components/core/base/art-descriptions/index.vue'

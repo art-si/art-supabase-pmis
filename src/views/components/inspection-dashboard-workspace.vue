@@ -126,7 +126,8 @@
           </div>
         </div>
         <ArtForm
-          v-model="settings"
+          :model-value="settings"
+          @update:model-value="replaceReactiveModel(settings, $event)"
           :items="settingsItems"
           :span="12"
           :show-reset="false"
@@ -139,6 +140,7 @@
 </template>
 
 <script setup lang="ts">
+  import { replaceReactiveModel } from '@/utils/form/model'
   import dayjs from 'dayjs'
   import { useIntervalFn } from '@vueuse/core'
   import TreeUtils from '@/utils/tree'

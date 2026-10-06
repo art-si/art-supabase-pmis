@@ -31,7 +31,8 @@
     <ElScrollbar class="pmis-analysis__scroll">
       <div class="pmis-analysis__body">
         <ArtSearchBar
-          v-model="query"
+          :model-value="query"
+          @update:model-value="replaceReactiveModel(query, $event)"
           :items="searchItems"
           :span="8"
           :label-width="72"
@@ -137,6 +138,7 @@
 </template>
 
 <script setup lang="ts">
+  import { replaceReactiveModel } from '@/utils/form/model'
   import dayjs from 'dayjs'
   import ArtExcelExport from '@/components/core/forms/art-excel-export/index.vue'
   import ArtSearchBar, {
