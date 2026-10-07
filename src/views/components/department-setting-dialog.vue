@@ -146,7 +146,7 @@
       key: 'notificationMethods',
       type: 'select',
       options: notifyOptions.value,
-      props: { multiple: true, collapseTags: true }
+      props: { multiple: true, collapseTags: true, collapseTagsTooltip: true }
     },
     ...(kind.value === 'maintenance'
       ? [

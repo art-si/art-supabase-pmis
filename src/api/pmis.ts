@@ -4,7 +4,7 @@ import { omit } from 'lodash-es'
 import { useSupabase } from '@/hooks'
 import TreeUtils from '@/utils/tree'
 import { resolveTenantScopeId } from '@/utils/tenant-scope-context'
-import { fetchAllRangePages } from '@/utils/supabase/pagination'
+import { buildSupabasePageRange, fetchAllRangePages } from '@/utils/supabase/pagination'
 import { buildOrIlikeFilter } from '@/utils/supabase/search'
 import type {
   PmisAnalysisItem,
@@ -104,15 +104,17 @@ export async function fetchPmisDepartmentTree(
 
 export async function fetchPmisEquipmentOptions(params: PmisPageQuery = {}) {
   const scopedTenantId = resolveTenantScopeId(params.tenantId)
-  const from = Math.max(((params.current ?? 1) - 1) * (params.size ?? 20), 0)
-  const to = from + (params.size ?? 20) - 1
+  const pageRange = buildSupabasePageRange({
+    current: params.current ?? 1,
+    size: params.size ?? 20
+  })
   let query = supabase
     .from('mdm_equipment')
     .select(equipmentSelect, { count: 'exact' })
     .eq('status', 'enabled')
     .order('equipment_code')
     .order('id')
-    .range(from, to)
+    .range(pageRange.from, pageRange.to)
   if (params.keyword?.trim())
     query = query.or(
       buildOrIlikeFilter(['equipment_code', 'equipment_name'], params.keyword.trim())
@@ -128,8 +130,10 @@ export async function fetchPmisEquipmentOptions(params: PmisPageQuery = {}) {
 
 export async function fetchPmisPlans(kind: PmisPlanKind, params: PmisPageQuery = {}) {
   const scopedTenantId = resolveTenantScopeId(params.tenantId)
-  const from = Math.max(((params.current ?? 1) - 1) * (params.size ?? 20), 0)
-  const to = from + (params.size ?? 20) - 1
+  const pageRange = buildSupabasePageRange({
+    current: params.current ?? 1,
+    size: params.size ?? 20
+  })
   let query = supabase
     .from('pmis_plan')
     .select(
@@ -150,7 +154,7 @@ export async function fetchPmisPlans(kind: PmisPlanKind, params: PmisPageQuery =
     .eq('plan_kind', kind)
     .order('update_time', { ascending: false })
     .order('id')
-    .range(from, to)
+    .range(pageRange.from, pageRange.to)
   if (params.keyword?.trim()) query = query.ilike('plan_name', `%${params.keyword.trim()}%`)
   if (scopedTenantId) query = query.eq('tenant_id', scopedTenantId)
   if (params.status) query = query.eq('status', params.status)
@@ -193,8 +197,10 @@ export async function deletePmisPlans(ids: string[], kind: PmisPlanKind) {
 
 export async function fetchPmisTasks(kind: PmisPlanKind, params: PmisPageQuery = {}) {
   const scopedTenantId = resolveTenantScopeId(params.tenantId)
-  const from = Math.max(((params.current ?? 1) - 1) * (params.size ?? 20), 0)
-  const to = from + (params.size ?? 20) - 1
+  const pageRange = buildSupabasePageRange({
+    current: params.current ?? 1,
+    size: params.size ?? 20
+  })
   let query = supabase
     .from('pmis_task')
     .select(taskSelect, { count: 'exact' })
@@ -202,7 +208,7 @@ export async function fetchPmisTasks(kind: PmisPlanKind, params: PmisPageQuery =
     .order('planned_date', { ascending: false })
     .order('task_no')
     .order('id')
-    .range(from, to)
+    .range(pageRange.from, pageRange.to)
   if (params.keyword?.trim()) query = query.ilike('task_no', `%${params.keyword.trim()}%`)
   if (scopedTenantId) query = query.eq('tenant_id', scopedTenantId)
   if (params.equipmentId) query = query.eq('equipment_id', params.equipmentId)
@@ -338,13 +344,16 @@ const repairSelect = `id,tenant_id,work_order_no,urgency,fault_symptom,fault_pho
 
 export async function fetchPmisRepairTasks(params: PmisPageQuery = {}) {
   const scopedTenantId = resolveTenantScopeId(params.tenantId)
-  const from = Math.max(((params.current ?? 1) - 1) * (params.size ?? 20), 0)
+  const pageRange = buildSupabasePageRange({
+    current: params.current ?? 1,
+    size: params.size ?? 20
+  })
   let query = supabase
     .from('pmis_repair_task')
     .select(repairSelect, { count: 'exact' })
     .order('reported_at', { ascending: false })
     .order('id')
-    .range(from, from + (params.size ?? 20) - 1)
+    .range(pageRange.from, pageRange.to)
   if (params.keyword?.trim())
     query = query.or(buildOrIlikeFilter(['work_order_no', 'fault_symptom'], params.keyword.trim()))
   if (scopedTenantId) query = query.eq('tenant_id', scopedTenantId)
