@@ -1,0 +1,1 @@
+import{Nn as e,Qn as t,Tn as n}from"./supabase-BJrWOMm0.js";import{t as r}from"./task-workspace-CrEYNpO7.js";var i=e({name:`PmisPatrolTask`,__name:`index`,setup(e){return(e,i)=>(t(),n(r,{kind:`patrol`,mode:`task`}))}});export{i as default};

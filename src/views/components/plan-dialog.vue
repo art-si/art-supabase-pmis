@@ -1,6 +1,6 @@
 <template>
   <ArtDialog ref="dialogRef" size="xl">
-    <div class="pmis-plan-dialog">
+    <div class="pmis-plan-dialog min-w-0">
       <ArtEntitySummary spaced>
         <template #icon><ArtSvgIcon :icon="config.icon" /></template>
         <small>{{ config.eyebrow }}</small>
@@ -372,9 +372,3 @@
   }
   defineExpose({ handleOpen })
 </script>
-
-<style scoped lang="scss">
-  .pmis-plan-dialog {
-    min-width: 0;
-  }
-</style>

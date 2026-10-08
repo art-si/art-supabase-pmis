@@ -1,1 +1,0 @@
-import{Hr as e,Kn as t,rr as n}from"./supabase-B0prXBF9.js";import{t as r}from"./plan-workspace-DpRUeHVD.js";var i=n({name:`PmisInspectionPlan`,__name:`index`,setup(n){return(n,i)=>(e(),t(r,{kind:`inspection`}))}});export{i as default};

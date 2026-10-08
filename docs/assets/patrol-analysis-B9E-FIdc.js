@@ -1,0 +1,1 @@
+import{Nn as e,Qn as t,Tn as n}from"./supabase-BJrWOMm0.js";import{t as r}from"./analysis-workspace-Dvkl0dS3.js";var i=e({name:`PmisPatrolAnalysis`,__name:`index`,setup(e){return(e,i)=>(t(),n(r,{kind:`patrol`}))}});export{i as default};
