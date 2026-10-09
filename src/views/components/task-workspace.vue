@@ -97,6 +97,8 @@
 </template>
 
 <script setup lang="tsx">
+  import { createDateTimeFormatter } from '@/utils/ui/format'
+
   import dayjs from 'dayjs'
   import BusinessTableRowActions from '@/components/business/business-table-row-actions/index.vue'
   import ArtButtonTable from '@/components/core/forms/art-button-table/index.vue'
@@ -140,6 +142,12 @@
   import { resolvePmisTaskPermissions } from './business-permissions'
   import PmisDetailDrawerSections from './detail-drawer-sections.vue'
   import PmisTaskEditorDialog, { type TaskEditorOpenData } from './task-editor-dialog.vue'
+
+  const formatTableDateTime = createDateTimeFormatter({
+    format: 'YYYY-MM-DD HH:mm',
+    emptyText: '—',
+    invalidText: '—'
+  })
 
   const props = defineProps<{ kind: PmisPlanKind; mode: 'task' | 'report' }>()
   const userStore = useUserStore()
@@ -364,8 +372,7 @@
       prop: 'completedAt',
       label: '完成时间',
       width: 164,
-      formatter: (row) =>
-        row.completedAt ? dayjs(row.completedAt).format('YYYY-MM-DD HH:mm') : '—'
+      formatter: (row) => formatTableDateTime(row.completedAt)
     },
     {
       prop: 'operation',

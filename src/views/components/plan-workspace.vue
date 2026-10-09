@@ -67,7 +67,8 @@
 </template>
 
 <script setup lang="tsx">
-  import dayjs from 'dayjs'
+  import { createDateTimeFormatter } from '@/utils/ui/format'
+
   import BusinessTableRowActions from '@/components/business/business-table-row-actions/index.vue'
   import ArtButtonMore, {
     type ButtonMoreItem
@@ -105,6 +106,12 @@
   import { pmisKindConfig } from './business-config'
   import { pmisPlanPermissions } from './business-permissions'
   import PmisDetailDrawerSections from './detail-drawer-sections.vue'
+
+  const formatTableDateTime = createDateTimeFormatter({
+    format: 'YYYY-MM-DD HH:mm',
+    emptyText: '--',
+    invalidText: '--'
+  })
 
   const props = defineProps<{ kind: PmisPlanKind }>()
   interface DialogExpose {
@@ -392,7 +399,7 @@
       prop: 'updateTime',
       label: '最近维护',
       width: 164,
-      formatter: (row) => dayjs(row.updateTime).format('YYYY-MM-DD HH:mm')
+      formatter: (row) => formatTableDateTime(row.updateTime)
     },
     {
       prop: 'operation',

@@ -64,6 +64,8 @@
   </div>
 </template>
 <script setup lang="tsx">
+  import { createDateTimeFormatter } from '@/utils/ui/format'
+
   import dayjs from 'dayjs'
   import ArtButtonTable from '@/components/core/forms/art-button-table/index.vue'
   import ArtDescriptions from '@/components/core/base/art-descriptions/index.vue'
@@ -91,6 +93,18 @@
   import PmisDepartmentNavigator from './department-navigator.vue'
   import PmisRepairTaskDialog, { type RepairDialogOpenData } from './repair-task-dialog.vue'
   import { pmisRepairTaskPermissions } from './business-permissions'
+
+  const formatTableDateTime = createDateTimeFormatter({
+    format: 'YYYY-MM-DD HH:mm',
+    emptyText: '--',
+    invalidText: '--'
+  })
+  const formatTableDateTime2 = createDateTimeFormatter({
+    format: 'YYYY-MM-DD HH:mm',
+    emptyText: '—',
+    invalidText: '—'
+  })
+
   const tableRef = ref<ArtTableQueryExpose>()
   const dialogRef = ref<{ handleOpen: (data: RepairDialogOpenData) => Promise<void> }>()
   const drawerRef = ref<ArtDrawerExpose<PmisRepairTask>>()
@@ -246,7 +260,7 @@
       prop: 'reportedAt',
       label: '报修时间',
       width: 164,
-      formatter: (r) => dayjs(r.reportedAt).format('YYYY-MM-DD HH:mm')
+      formatter: (r) => formatTableDateTime(r.reportedAt)
     },
     {
       prop: 'repairer',
@@ -265,7 +279,7 @@
       prop: 'completedAt',
       label: '完成时间',
       width: 164,
-      formatter: (r) => (r.completedAt ? dayjs(r.completedAt).format('YYYY-MM-DD HH:mm') : '—')
+      formatter: (r) => formatTableDateTime2(r.completedAt)
     },
     {
       prop: 'operation',

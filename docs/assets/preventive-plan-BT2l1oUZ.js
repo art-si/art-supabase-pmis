@@ -1,1 +1,0 @@
-import{Nn as e,Qn as t,Tn as n}from"./supabase-BJrWOMm0.js";import{t as r}from"./plan-workspace-pCWn1cN9.js";var i=e({__name:`index`,setup(e){return(e,i)=>(t(),n(r,{kind:`preventive`}))}});export{i as default};

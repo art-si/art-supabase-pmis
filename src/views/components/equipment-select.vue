@@ -1,6 +1,7 @@
 <template>
-  <component
-    :is="selectorComponent"
+  <ArtDataSelect
+    mode="table"
+    :multiple="multiple"
     :model-value="multiple ? modelValues : modelValue"
     :selected-data="selectedData"
     :api-fn="fetchOptions"
@@ -18,21 +19,18 @@
     :page-size="10"
     :disabled="!tenantId"
     @update:model-value="updateValue"
-    @update:selected-data="emit('update:selectedData', normalizeRows($event))"
+    @update:selected-data="emit('update:selectedData', $event)"
   />
 </template>
 
 <script setup lang="ts">
-  import { normalizeStringList } from '@/utils/form/normalize'
+  import { normalizeSingleStringKey, normalizeStringList } from '@/utils/form/normalize'
 
-  import type { Component } from 'vue'
-  import ArtTableSingleSelect from '@/components/core/forms/art-data-select/table-single.vue'
-  import ArtTableMultipleSelect from '@/components/core/forms/art-data-select/table-multiple.vue'
+  import ArtDataSelect from '@/components/core/forms/art-data-select/index.vue'
   import type {
     DataSelectColumn,
     DataSelectFetchParams,
-    DataSelectKey,
-    DataSelectRecord
+    DataSelectKey
   } from '@/components/core/forms/art-data-select/types'
   import { fetchPmisEquipmentOptions, type PmisEquipmentOption } from '@pmis/api'
 
@@ -58,23 +56,17 @@
     'update:modelValues': [value: string[]]
     'update:selectedData': [rows: PmisEquipmentOption[]]
   }>()
-  const selectorComponent = computed<Component>(() =>
-    props.multiple ? ArtTableMultipleSelect : ArtTableSingleSelect
-  )
-  const equipment = (row: DataSelectRecord) => row as PmisEquipmentOption
-  const equipmentLabel = (row: DataSelectRecord) => equipment(row).equipmentName || '未命名设备'
-  const equipmentDescription = (row: DataSelectRecord) =>
-    [equipment(row).equipmentCode, equipment(row).department?.departmentName]
-      .filter(Boolean)
-      .join(' · ')
-  const columns: DataSelectColumn[] = [
+  const equipmentLabel = (row: PmisEquipmentOption) => row.equipmentName || '未命名设备'
+  const equipmentDescription = (row: PmisEquipmentOption) =>
+    [row.equipmentCode, row.department?.departmentName].filter(Boolean).join(' · ')
+  const columns: DataSelectColumn<PmisEquipmentOption>[] = [
     { prop: 'equipmentCode', label: '设备编号', minWidth: 150 },
     { prop: 'equipmentName', label: '设备名称', minWidth: 190 },
     {
       prop: 'department',
       label: '部门 / 产线',
       minWidth: 180,
-      formatter: (row) => equipment(row).department?.departmentName || '待分配'
+      formatter: (row) => row.department?.departmentName || '待分配'
     },
     {
       prop: 'operationStatus',
@@ -91,12 +83,8 @@
       tenantId: props.tenantId || undefined
     })
 
-  const normalizeRows = (rows: DataSelectRecord[]): PmisEquipmentOption[] => rows.map(equipment)
   const updateValue = (value: DataSelectKey | DataSelectKey[] | undefined): void => {
     if (props.multiple) emit('update:modelValues', normalizeStringList(value))
-    else {
-      const selectedValue = Array.isArray(value) ? value[0] : value
-      emit('update:modelValue', selectedValue == null ? undefined : String(selectedValue))
-    }
+    else emit('update:modelValue', normalizeSingleStringKey(value))
   }
 </script>
