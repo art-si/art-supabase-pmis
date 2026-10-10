@@ -1,0 +1,1 @@
+import{H as e,K as t,R as n,Z as r,z as i}from"./_baseForOwn-DXuTqwsd.js";function a(n,r){return e(i(n,r,t),n+``)}function o(e){return r(e)&&n(e)}export{a as n,o as t};

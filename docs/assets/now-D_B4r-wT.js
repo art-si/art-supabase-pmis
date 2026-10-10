@@ -1,0 +1,1 @@
+import{et as e}from"./_baseForOwn-DXuTqwsd.js";var t=function(){return e.Date.now()};export{t};

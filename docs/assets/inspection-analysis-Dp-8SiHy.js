@@ -1,1 +1,0 @@
-import{Nn as e,Qn as t,Tn as n}from"./supabase-BJrWOMm0.js";import{t as r}from"./analysis-workspace-urh_bO34.js";var i=e({name:`PmisInspectionAnalysis`,__name:`index`,setup(e){return(e,i)=>(t(),n(r,{kind:`inspection`}))}});export{i as default};

@@ -1,7 +1,7 @@
 import { toDateStartTimestamp } from '@/utils/time/date-boundary'
 import dayjs from 'dayjs'
 import { omit } from 'lodash-es'
-import { useSupabase } from '@/hooks'
+import { useSupabase } from '@/hooks/core/useSupabase'
 import TreeUtils from '@/utils/tree'
 import { resolveTenantScopeId } from '@/utils/tenant-scope-context'
 import { buildSupabasePageRange, fetchAllRangePages } from '@/utils/supabase/pagination'

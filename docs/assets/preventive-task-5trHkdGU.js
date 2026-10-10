@@ -1,0 +1,1 @@
+import{fr as e,qn as t,zn as n}from"./supabase-DrA5H_XJ.js";import{t as r}from"./task-workspace-GTMZsuAn.js";var i=t({__name:`index`,setup(t){return(t,i)=>(e(),n(r,{kind:`preventive`,mode:`task`}))}});export{i as default};
