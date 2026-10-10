@@ -1,0 +1,1 @@
+import{Bn as e,Jn as t,pr as n}from"./supabase-Dgrj2v8N.js";import{t as r}from"./calendar-workspace-BZCNBVfY.js";var i=t({name:`PmisInspectionSheet`,__name:`index`,setup(t){return(t,i)=>(n(),e(r,{mode:`sheet`}))}});export{i as default};

@@ -1,0 +1,1 @@
+import{Bn as e,Jn as t,pr as n}from"./supabase-Dgrj2v8N.js";import{t as r}from"./department-setting-workspace-B224RBnI.js";var i=t({__name:`index`,setup(t){return(t,i)=>(n(),e(r,{kind:`maintenance`}))}});export{i as default};
