@@ -20,7 +20,7 @@
       :class="{ 'is-active': !activeId }"
       @click="clear"
     >
-      <span><ArtSvgIcon icon="ri:apps-2-line" />全部产线</span>
+      <span class="art-icon-label"><ArtSvgIcon icon="ri:apps-2-line" />全部产线</span>
       <strong>{{ departmentCount }}</strong>
     </button>
 
