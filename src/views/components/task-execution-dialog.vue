@@ -50,9 +50,12 @@
                   <small>{{ task.plan.items[index]?.requirement }}</small>
                 </div>
                 <ElRadioGroup v-model="result.resultStatus" size="small">
-                  <ElRadioButton value="ok">正常</ElRadioButton>
-                  <ElRadioButton value="ng">异常</ElRadioButton>
-                  <ElRadioButton value="exempt">免检</ElRadioButton>
+                  <ElRadioButton
+                    v-for="option in resultStatusOptions"
+                    :key="option.value"
+                    :value="option.value"
+                    >{{ option.label }}</ElRadioButton
+                  >
                 </ElRadioGroup>
               </header>
 
@@ -127,6 +130,7 @@
 <script setup lang="ts">
   import { validateArtFormForSubmit } from '@/utils/form/validate-art-form'
   import { notifyFriendlyError } from '@/hooks/core/useArtFeedback'
+  import { useDictionaryOptions } from '@/hooks/core/useDictionaryOptions'
   import { normalizeNullableText } from '@/utils/form/normalize'
   import { ElMessage, type FormRules } from 'element-plus'
   import type { EmployeeIntegrationItem } from '@/api/integration/employees'
@@ -169,6 +173,10 @@
   const dialogRef = ref<ArtDialogExpose<PmisTaskExecutionDialogOpenData>>()
   const formRef = ref<FormExpose>()
   const task = shallowRef<PmisTask>()
+  const configuredResultStatusOptions = useDictionaryOptions('pmisTaskExecutionResult')
+  const resultStatusOptions = computed(() =>
+    configuredResultStatusOptions.filter((option) => ['ok', 'ng', 'exempt'].includes(option.value))
+  )
   const executorSelection = shallowRef<EmployeeIntegrationItem[]>([])
   const form = reactive<{ model: ExecutionFormModel; items: FormItem[] }>({
     model: {

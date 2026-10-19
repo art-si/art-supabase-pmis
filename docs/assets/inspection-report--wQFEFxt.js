@@ -1,1 +1,0 @@
-import{Bn as e,Jn as t,pr as n}from"./supabase-Dgrj2v8N.js";import{t as r}from"./task-workspace-UTsoP5kz.js";var i=t({name:`PmisInspectionReport`,__name:`index`,setup(t){return(t,i)=>(n(),e(r,{kind:`inspection`,mode:`report`}))}});export{i as default};
