@@ -1,0 +1,1 @@
+import{Hn as e,Xn as t,hr as n}from"./supabase-CP_c_y6P.js";import{t as r}from"./analysis-workspace-BJXhUgIL.js";var i=t({__name:`index`,setup(t){return(t,i)=>(n(),e(r,{kind:`maintenance`}))}});export{i as default};

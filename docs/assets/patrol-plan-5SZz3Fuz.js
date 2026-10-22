@@ -1,0 +1,1 @@
+import{Hn as e,Xn as t,hr as n}from"./supabase-CP_c_y6P.js";import{t as r}from"./plan-workspace-FGJaHzZ9.js";var i=t({name:`PmisPatrolPlan`,__name:`index`,setup(t){return(t,i)=>(n(),e(r,{kind:`patrol`}))}});export{i as default};

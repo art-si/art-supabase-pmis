@@ -82,7 +82,7 @@
     type PmisRepairUrgency
   } from '@pmis/api'
   import PmisEquipmentSelect from './equipment-select.vue'
-  import { toEmployeeSelectedData } from './business-records'
+  import { employeeReferenceSelection } from '@/utils/form/employee-reference'
   export interface RepairDialogOpenData {
     row?: PmisRepairTask
     copy?: boolean
@@ -110,6 +110,7 @@
   const dialogRef = ref<ArtDialogExpose<RepairDialogOpenData>>()
   const formRef = ref<{ validate: () => Promise<boolean>; clearValidate: () => void }>()
   const initial = (): FormModel => ({
+    id: undefined,
     tenantId: '',
     equipmentId: undefined,
     urgency: 'normal',
@@ -234,9 +235,9 @@
         status: data.copy ? 'reported' : data.row.status
       })
       selectedEquipment.value = [data.row.equipment]
-      selectedReporters.value = toEmployeeSelectedData(data.row.tenantId, [data.row.reporter])
-      selectedRepairers.value = toEmployeeSelectedData(data.row.tenantId, [data.row.repairer])
-      selectedConfirmers.value = toEmployeeSelectedData(data.row.tenantId, [data.row.confirmer])
+      selectedReporters.value = employeeReferenceSelection(data.row.reporter, data.row.tenantId)
+      selectedRepairers.value = employeeReferenceSelection(data.row.repairer, data.row.tenantId)
+      selectedConfirmers.value = employeeReferenceSelection(data.row.confirmer, data.row.tenantId)
     }
     await dialogRef.value?.handleOpen(data, {
       title: `${data.copy ? '复制' : data.row ? '编辑' : '新增'}维修工单`,

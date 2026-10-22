@@ -53,7 +53,7 @@
     type PmisTask
   } from '@pmis/api'
   import PmisEquipmentSelect from './equipment-select.vue'
-  import { toEmployeeSelectedData } from './business-records'
+  import { employeeReferenceSelection } from '@/utils/form/employee-reference'
   import { pmisKindConfig } from './business-config'
   export interface TaskEditorOpenData {
     kind: PmisPlanKind
@@ -77,6 +77,7 @@
   const selectedEquipment = shallowRef<PmisEquipmentOption[]>([])
   const selectedResponsible = shallowRef<EmployeeIntegrationItem[]>([])
   const initial = (): FormModel => ({
+    id: undefined,
     tenantId: '',
     planId: '',
     equipmentId: undefined,
@@ -166,7 +167,10 @@
           : data.row.executionSummary || ''
       })
       selectedEquipment.value = [data.row.equipment]
-      selectedResponsible.value = toEmployeeSelectedData(data.row.tenantId, [data.row.responsible])
+      selectedResponsible.value = employeeReferenceSelection(
+        data.row.responsible,
+        data.row.tenantId
+      )
     }
     await dialogRef.value?.handleOpen(data, {
       title: `${data.copy ? '复制' : data.row ? '编辑' : '新增'}${kindLabel.value}任务`,

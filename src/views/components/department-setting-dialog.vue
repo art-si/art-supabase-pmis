@@ -61,7 +61,11 @@
   import ArtForm, { type FormItem } from '@/components/core/forms/art-form/index.vue'
   import ArtSvgIcon from '@/components/core/base/art-svg-icon/index.vue'
   import ArtEmployeeSelect from '@/components/business/art-employee-select/index.vue'
-  import type { EmployeeIntegrationItem } from '@/api/integration/employees'
+  import {
+    fetchEmployeeReferencesByIds,
+    type EmployeeIntegrationItem
+  } from '@/api/integration/employees'
+  import { employeeReferenceSelection } from '@/utils/form/employee-reference'
   import { useUserStore } from '@/store/modules/user'
   import {
     fetchPmisDepartmentTree,
@@ -69,7 +73,6 @@
     type PmisDepartmentSetting,
     type PmisSettingKind
   } from '@pmis/api'
-  import { resolveEmployeeSelectedData, toEmployeeSelectedData } from './business-records'
 
   export interface SettingDialogOpenData {
     kind: PmisSettingKind
@@ -104,6 +107,7 @@
   const selectedRepairers = shallowRef<EmployeeIntegrationItem[]>([])
   const selectedNotifiers = shallowRef<EmployeeIntegrationItem[]>([])
   const initial = (): FormModel => ({
+    id: undefined,
     tenantId: '',
     departmentId: '',
     requireAlbumPhoto: false,
@@ -210,10 +214,9 @@
       .map((item) => item.employee?.id)
       .filter((id): id is string => Boolean(id))
   const employeeRows = (row: PmisDepartmentSetting, role: string) =>
-    toEmployeeSelectedData(
-      row.tenantId,
-      row.employees.filter((item) => item.role === role).map((item) => item.employee)
-    )
+    row.employees
+      .filter((item) => item.role === role)
+      .flatMap((item) => employeeReferenceSelection(item.employee, row.tenantId))
   const submit = async () => {
     await formRef.value?.validate()
     await savePmisDepartmentSetting(
@@ -292,7 +295,7 @@
           const [departments, resolvedNotifiers] = await Promise.all([
             fetchPmisDepartmentTree(form.tenantId || undefined),
             data.row && selectedNotifiers.value.length !== form.notifyEmployeeIds.length
-              ? resolveEmployeeSelectedData(data.row.tenantId, form.notifyEmployeeIds)
+              ? fetchEmployeeReferencesByIds(data.row.tenantId, form.notifyEmployeeIds)
               : Promise.resolve(selectedNotifiers.value),
             userStore.ensureDictLoaded('pmisNotificationMethod')
           ])
