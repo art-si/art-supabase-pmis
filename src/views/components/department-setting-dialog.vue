@@ -61,11 +61,9 @@
   import ArtForm, { type FormItem } from '@/components/core/forms/art-form/index.vue'
   import ArtSvgIcon from '@/components/core/base/art-svg-icon/index.vue'
   import ArtEmployeeSelect from '@/components/business/art-employee-select/index.vue'
-  import {
-    fetchEmployeeReferencesByIds,
-    type EmployeeIntegrationItem
-  } from '@/api/integration/employees'
+  import type { EmployeeIntegrationItem } from '@/api/integration/employees'
   import { employeeReferenceSelection } from '@/utils/form/employee-reference'
+  import { resolveEmployeeSelectedData } from './business-records'
   import { useUserStore } from '@/store/modules/user'
   import {
     fetchPmisDepartmentTree,
@@ -295,7 +293,7 @@
           const [departments, resolvedNotifiers] = await Promise.all([
             fetchPmisDepartmentTree(form.tenantId || undefined),
             data.row && selectedNotifiers.value.length !== form.notifyEmployeeIds.length
-              ? fetchEmployeeReferencesByIds(data.row.tenantId, form.notifyEmployeeIds)
+              ? resolveEmployeeSelectedData(data.row.tenantId, form.notifyEmployeeIds)
               : Promise.resolve(selectedNotifiers.value),
             userStore.ensureDictLoaded('pmisNotificationMethod')
           ])
