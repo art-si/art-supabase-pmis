@@ -1,1 +1,0 @@
-import{Hn as e,Xn as t,hr as n}from"./supabase-CP_c_y6P.js";import{t as r}from"./task-workspace-C7YrnU5s.js";var i=t({__name:`index`,setup(t){return(t,i)=>(n(),e(r,{kind:`patrol`,mode:`report`}))}});export{i as default};
