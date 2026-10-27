@@ -1,4 +1,5 @@
 import { toDateStartTimestamp } from '@/utils/time/date-boundary'
+import type { ApiFeedbackOptions } from '@/types/api/request'
 import dayjs from 'dayjs'
 import { omit } from 'lodash-es'
 import { useSupabase } from '@/hooks/core/useSupabase'
@@ -102,7 +103,10 @@ export async function fetchPmisDepartmentTree(
   return treeUtils.listToTree(departments) as PmisDepartmentTreeOption[]
 }
 
-export async function fetchPmisEquipmentOptions(params: PmisPageQuery = {}) {
+export async function fetchPmisEquipmentOptions(
+  params: PmisPageQuery = {},
+  options: ApiFeedbackOptions = {}
+) {
   const scopedTenantId = resolveTenantScopeId(params.tenantId)
   const pageRange = buildSupabasePageRange({
     current: params.current ?? 1,
@@ -122,7 +126,8 @@ export async function fetchPmisEquipmentOptions(params: PmisPageQuery = {}) {
   if (params.departmentId) query = query.eq('production_department_id', params.departmentId)
   if (scopedTenantId) query = query.eq('tenant_id', scopedTenantId)
   const result = await responseHandle<PmisEquipmentOption[]>(() => query, {
-    showErrorMessage: true,
+    breakReturn: true,
+    showErrorMessage: options.showErrorMessage ?? true,
     errorMessage: '设备列表加载失败，请重试'
   })
   return { data: result.data ?? [], total: result.total ?? 0 }

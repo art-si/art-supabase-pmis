@@ -57,6 +57,16 @@
             @search="load"
             @reset="reset"
           />
+          <ElAlert
+            v-if="mode === 'detail' && equipmentError"
+            type="warning"
+            :closable="false"
+            show-icon
+            title="设备筛选暂不可用"
+          >
+            {{ equipmentError }}
+            <ElButton link type="primary" @click="loadEquipmentOptions">重新加载设备</ElButton>
+          </ElAlert>
           <ArtSectionCard
             root-class="pmis-calendar__matrix-card"
             :title="mode === 'sheet' ? '设备日历矩阵' : `${kindLabel}项目日历矩阵`"
@@ -145,6 +155,7 @@
 <script setup lang="tsx">
   import { replaceReactiveModel } from '@/utils/form/model'
   import dayjs from 'dayjs'
+  import { isEqual } from 'lodash-es'
   import ArtTooltip from '@/components/core/feedback/art-tooltip/index.vue'
   import ArtDescriptions from '@/components/core/base/art-descriptions/index.vue'
   import ArtDictDisplay from '@/components/core/base/art-dict-display/index.vue'
@@ -219,6 +230,7 @@
     tasks: []
   })
   const equipmentOptions = shallowRef<PmisEquipmentOption[]>([])
+  const equipmentError = ref('')
   const departmentIds = ref<string[]>([])
   const departmentLabel = ref('全部产线')
   const drawerRef = ref<ArtDrawerExpose<PmisTask>>()
@@ -479,6 +491,7 @@
     }
   }
   const changeDepartments = (ids: string[], label: string): void => {
+    if (departmentLabel.value === label && isEqual(departmentIds.value, ids)) return
     departmentIds.value = ids
     departmentLabel.value = label
     void load()
@@ -538,11 +551,16 @@
   const loadEquipmentOptions = async (): Promise<void> => {
     const version = ++equipmentLoadVersion
     equipmentOptions.value = []
+    equipmentError.value = ''
     try {
-      const result = await fetchPmisEquipmentOptions({ current: 1, size: 500 })
+      const result = await fetchPmisEquipmentOptions(
+        { current: 1, size: 500 },
+        { showErrorMessage: false }
+      )
       if (version === equipmentLoadVersion) equipmentOptions.value = result.data
     } catch {
-      // The equipment provider reports lookup errors.
+      if (version === equipmentLoadVersion)
+        equipmentError.value = '设备列表加载失败；任务日历仍可查看。'
     }
   }
   void useUserStore().ensureDictLoaded('pmisResultStatus')
@@ -553,11 +571,14 @@
       departmentLabel.value = '全部产线'
       query.equipmentId = ''
       state.tasks = []
-      void loadEquipmentOptions()
+      if (props.mode === 'detail') void loadEquipmentOptions()
       void load()
-    }
+    },
+    // Clear the parent filter before the navigator emits its own scope-reset event.
+    { flush: 'sync' }
   )
-  void loadEquipmentOptions().then(() => void load())
+  if (props.mode === 'detail') void loadEquipmentOptions()
+  void load()
 </script>
 
 <style scoped lang="scss">
@@ -602,6 +623,16 @@
         padding-bottom: var(--art-space-3);
         margin-bottom: 0;
         border-bottom: 1px solid var(--el-border-color-lighter);
+      }
+
+      @media (width <= 1100px) {
+        :deep(.art-section-card__identity) {
+          flex-basis: 100%;
+        }
+
+        :deep(.art-section-card__actions) {
+          margin-left: 0;
+        }
       }
 
       :deep(.art-async-state__empty) {

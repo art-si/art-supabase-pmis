@@ -98,7 +98,6 @@
   import type { ColumnOption } from '@/types'
   import { useArtFeedback } from '@/hooks/core/useArtFeedback'
   import { useTenantScopeStore } from '@/store/modules/tenant-scope'
-  import { useUserStore } from '@/store/modules/user'
   import {
     deletePmisDepartmentSettings,
     fetchPmisDepartmentSettings,
@@ -123,7 +122,6 @@
   const tenantScope = useTenantScopeStore()
   const { effectiveTenantId } = storeToRefs(tenantScope)
   const { confirmAction } = useArtFeedback()
-  const userStore = useUserStore()
   const title = computed(() => (props.kind === 'maintenance' ? '保养设置' : '设置维修人员'))
   const description = computed(() =>
     props.kind === 'maintenance'
@@ -339,9 +337,6 @@
           }
         ]
       : []
-  )
-  void Promise.all(
-    ['pmisNotificationMethod', 'pmisRepairUrgency'].map((code) => userStore.ensureDictLoaded(code))
   )
 </script>
 

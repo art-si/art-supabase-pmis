@@ -125,7 +125,7 @@
   import type { ColumnOption } from '@/types'
   import { useAuth } from '@/hooks/core/useAuth'
   import { useArtFeedback } from '@/hooks/core/useArtFeedback'
-  import { useUserStore } from '@/store/modules/user'
+  import { useDictionaryOptions } from '@/hooks/core/useDictionaryOptions'
   import {
     confirmPmisTask,
     deletePmisTasks,
@@ -150,10 +150,9 @@
   })
 
   const props = defineProps<{ kind: PmisPlanKind; mode: 'task' | 'report' }>()
-  const userStore = useUserStore()
   const { hasAuth } = useAuth()
   const { confirmAction } = useArtFeedback()
-  const { getDictMap } = storeToRefs(userStore)
+  const taskStatusOptions = useDictionaryOptions('pmisTaskStatus')
   const tableRef = ref<ArtTableQueryExpose>()
   const drawerRef = ref<ArtDrawerExpose<PmisTask>>()
   const detailRow = shallowRef<PmisTask>()
@@ -238,12 +237,9 @@
       label: '执行状态',
       key: 'status',
       type: 'select',
-      props: { clearable: true, options: getDictMap.value.pmisTaskStatus ?? [] }
+      props: { clearable: true, options: taskStatusOptions }
     }
   ])
-  void Promise.all(
-    ['pmisTaskStatus', 'pmisResultStatus'].map((code) => userStore.ensureDictLoaded(code))
-  )
   const fetchData = async (params: Record<string, unknown>) => {
     const range = Array.isArray(params.dateRange) ? params.dateRange.map(String) : []
     const result = await fetchPmisTasks(props.kind, {

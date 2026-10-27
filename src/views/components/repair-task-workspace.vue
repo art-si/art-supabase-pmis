@@ -86,8 +86,8 @@
   } from '@/components/core/tables/art-table-query/index.vue'
   import type { ColumnOption } from '@/types'
   import { useArtFeedback } from '@/hooks/core/useArtFeedback'
+  import { useDictionaryOptions } from '@/hooks/core/useDictionaryOptions'
   import { useTenantScopeStore } from '@/store/modules/tenant-scope'
-  import { useUserStore } from '@/store/modules/user'
   import { deletePmisRepairTasks, fetchPmisRepairTasks, type PmisRepairTask } from '@pmis/api'
   import PmisDetailDrawerSections from './detail-drawer-sections.vue'
   import PmisDepartmentNavigator from './department-navigator.vue'
@@ -114,8 +114,7 @@
   const departments = ref<string[]>([])
   const search = ref<Record<string, unknown>>({ keyword: '', dateRange: [], status: '' })
   const { confirmAction } = useArtFeedback()
-  const userStore = useUserStore()
-  const { getDictMap } = storeToRefs(userStore)
+  const repairStatusOptions = useDictionaryOptions('pmisRepairStatus')
   const scope = useTenantScopeStore()
   const { effectiveTenantId } = storeToRefs(scope)
   const overdue = computed(() => rows.value.filter((r) => r.displayStatus === 'overdue').length)
@@ -173,7 +172,7 @@
       type: 'select',
       props: {
         clearable: true,
-        options: getDictMap.value.pmisRepairStatus ?? []
+        options: repairStatusOptions
       }
     }
   ])
@@ -375,9 +374,6 @@
           }
         ]
       : []
-  )
-  void Promise.all(
-    ['pmisRepairUrgency', 'pmisRepairStatus'].map((code) => userStore.ensureDictLoaded(code))
   )
 </script>
 <style scoped lang="scss">

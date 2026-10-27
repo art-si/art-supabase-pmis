@@ -76,12 +76,15 @@
     }
   ]
   const fetchOptions = async (params: DataSelectFetchParams) =>
-    fetchPmisEquipmentOptions({
-      current: params.page,
-      size: params.pageSize,
-      keyword: params.keyword,
-      tenantId: props.tenantId || undefined
-    })
+    fetchPmisEquipmentOptions(
+      {
+        current: params.page,
+        size: params.pageSize,
+        keyword: params.keyword,
+        tenantId: props.tenantId || undefined
+      },
+      { showErrorMessage: false }
+    )
 
   const updateValue = (value: DataSelectKey | DataSelectKey[] | undefined): void => {
     if (props.multiple) emit('update:modelValues', normalizeStringList(value))

@@ -356,19 +356,14 @@
     departments.value = []
     equipment.value = []
     state.tasks = []
-    try {
-      const [departmentTree, equipmentResult] = await Promise.all([
-        fetchPmisDepartmentTree(),
-        fetchPmisEquipmentOptions({ current: 1, size: 500 })
-      ])
-      if (version !== scopeLoadVersion) return
-      departments.value = departmentTree
-      equipment.value = equipmentResult.data
-    } catch {
-      // Lookup requests already show their error feedback.
-    } finally {
-      if (version === scopeLoadVersion) void load()
-    }
+    void load()
+    const [departmentResult, equipmentResult] = await Promise.allSettled([
+      fetchPmisDepartmentTree(),
+      fetchPmisEquipmentOptions({ current: 1, size: 500 })
+    ])
+    if (version !== scopeLoadVersion) return
+    if (departmentResult.status === 'fulfilled') departments.value = departmentResult.value
+    if (equipmentResult.status === 'fulfilled') equipment.value = equipmentResult.value.data
   }
   void userStore.ensureDictLoaded('pmisTaskStatus')
   watch(
