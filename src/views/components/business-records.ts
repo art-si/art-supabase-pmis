@@ -3,11 +3,13 @@ import {
   type EmployeeIntegrationItem
 } from '@/api/integration/employees'
 import { uniq } from 'lodash-es'
+import type { ApiFeedbackOptions, ApiRequestOptions } from '@/types/api/request'
 
 /** The selector RPC also serves account managers who cannot read the employee table. */
 export async function resolveEmployeeSelectedData(
   tenantId: string,
-  employeeIds: string[]
+  employeeIds: string[],
+  options: ApiRequestOptions & ApiFeedbackOptions = {}
 ): Promise<EmployeeIntegrationItem[]> {
   const uniqueIds = uniq(employeeIds.filter(Boolean))
   if (!tenantId || uniqueIds.length === 0) return []
@@ -17,11 +19,14 @@ export async function resolveEmployeeSelectedData(
   let offset = 0
   let total = Number.POSITIVE_INFINITY
   while (offset < total && matched.size < uniqueIds.length) {
-    const result = await fetchEmployeeSelectorList({
-      tenantId,
-      from: offset,
-      to: offset + pageSize - 1
-    })
+    const result = await fetchEmployeeSelectorList(
+      {
+        tenantId,
+        from: offset,
+        to: offset + pageSize - 1
+      },
+      options
+    )
     if (result.error) throw result.error
     total = result.total
     for (const employee of result.data) {

@@ -1,1 +1,0 @@
-import{Un as e,Zn as t,gr as n}from"./supabase-BLA-4-gs.js";import{t as r}from"./calendar-workspace-CiSKyrV_.js";var i=t({name:`PmisInspectionSheet`,__name:`index`,setup(t){return(t,i)=>(n(),e(r,{mode:`sheet`}))}});export{i as default};

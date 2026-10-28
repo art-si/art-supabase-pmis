@@ -56,6 +56,8 @@
 <script setup lang="ts">
   import { replaceReactiveModel } from '@/utils/form/model'
   import type { FormRules } from 'element-plus'
+  import { notifyFriendlyError } from '@/hooks/core/useArtFeedback'
+  import { useTenantScopeStore } from '@/store/modules/tenant-scope'
   import ArtDialog from '@/components/core/dialogs/art-dialog/index.vue'
   import type { ArtDialogExpose } from '@/components/core/dialogs/art-dialog/types'
   import ArtForm, { type FormItem } from '@/components/core/forms/art-form/index.vue'
@@ -95,11 +97,22 @@
   }
   const emit = defineEmits<{ success: [] }>()
   const userStore = useUserStore()
+  const tenantScopeStore = useTenantScopeStore()
   const { getDictMap } = storeToRefs(userStore)
   const dialogRef = ref<ArtDialogExpose<SettingDialogOpenData>>()
   const formRef = ref<{ validate: () => Promise<boolean>; clearValidate: () => void }>()
   const kind = ref<PmisSettingKind>('maintenance')
   const departmentOptions = shallowRef<Awaited<ReturnType<typeof fetchPmisDepartmentTree>>>([])
+  let loadController: AbortController | undefined
+  onScopeDispose(() => loadController?.abort())
+  watch(
+    () => tenantScopeStore.revision,
+    () => {
+      loadController?.abort()
+      void dialogRef.value?.handleClose()
+    },
+    { flush: 'sync' }
+  )
   const selectedResponsible = shallowRef<EmployeeIntegrationItem[]>([])
   const selectedConfirmers = shallowRef<EmployeeIntegrationItem[]>([])
   const selectedRepairers = shallowRef<EmployeeIntegrationItem[]>([])
@@ -247,6 +260,9 @@
     return true
   }
   const handleOpen = async (data: SettingDialogOpenData) => {
+    loadController?.abort()
+    const controller = new AbortController()
+    loadController = controller
     kind.value = data.kind
     Object.assign(form, initial(), { tenantId: data.tenantId || '' })
     selectedResponsible.value = []
@@ -287,22 +303,33 @@
       loading: true,
       loadingText: '正在加载部门与通知方式…',
       onOpen: async (_openData, api) => {
+        const isCurrent = () => !controller.signal.aborted && api.visible.value
         await nextTick()
+        if (!isCurrent()) return
         formRef.value?.clearValidate()
         try {
+          const options = { signal: controller.signal, showErrorMessage: false }
           const [departments, resolvedNotifiers] = await Promise.all([
-            fetchPmisDepartmentTree(form.tenantId || undefined),
+            fetchPmisDepartmentTree(form.tenantId || undefined, options),
             data.row && selectedNotifiers.value.length !== form.notifyEmployeeIds.length
-              ? resolveEmployeeSelectedData(data.row.tenantId, form.notifyEmployeeIds)
+              ? resolveEmployeeSelectedData(data.row.tenantId, form.notifyEmployeeIds, options)
               : Promise.resolve(selectedNotifiers.value),
             userStore.ensureDictLoaded('pmisNotificationMethod')
           ])
-          departmentOptions.value = departments
-          selectedNotifiers.value = resolvedNotifiers
+          if (isCurrent()) {
+            departmentOptions.value = departments
+            selectedNotifiers.value = resolvedNotifiers
+          }
+        } catch (error) {
+          if (!isCurrent()) return
+          notifyFriendlyError(error, '部门设置选项加载失败，请重新打开后重试')
+          await api.handleClose()
         } finally {
-          api.setLoading(false)
+          if (isCurrent()) api.setLoading(false)
+          if (loadController === controller) loadController = undefined
         }
       },
+      onClose: () => controller.abort(),
       onConfirm: submit
     })
   }

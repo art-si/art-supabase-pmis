@@ -8,7 +8,10 @@
       :tags="[
         { label: '异常自动转单', type: 'primary' },
         { label: '移动端可用', type: 'success' },
-        { label: `${overdue} 单逾期`, type: overdue ? 'danger' : 'info' }
+        {
+          label: `${metricsReady ? overdue : '—'} 单逾期`,
+          type: metricsReady && overdue ? 'danger' : 'info'
+        }
       ]"
       :metrics="metrics"
       ><template #actions><BusinessTableWorkspaceActions :table="tableRef" /></template
@@ -85,6 +88,7 @@
     ArtTableQueryHeaderAction
   } from '@/components/core/tables/art-table-query/index.vue'
   import type { ColumnOption } from '@/types'
+  import type { ApiRequestOptions } from '@/types/api/request'
   import { useArtFeedback } from '@/hooks/core/useArtFeedback'
   import { useDictionaryOptions } from '@/hooks/core/useDictionaryOptions'
   import { useTenantScopeStore } from '@/store/modules/tenant-scope'
@@ -109,8 +113,16 @@
   const dialogRef = ref<{ handleOpen: (data: RepairDialogOpenData) => Promise<void> }>()
   const drawerRef = ref<ArtDrawerExpose<PmisRepairTask>>()
   const detail = shallowRef<PmisRepairTask>()
-  const rows = shallowRef<PmisRepairTask[]>([])
-  const total = ref(0)
+  const rows = computed(
+    () => (tableRef.value?.dataState.rows.value ?? []) as readonly PmisRepairTask[]
+  )
+  const total = computed(() => tableRef.value?.dataState.pagination.value?.total ?? 0)
+  const metricsReady = computed(
+    () =>
+      tableRef.value?.dataState &&
+      !tableRef.value.dataState.loading.value &&
+      !tableRef.value.dataState.error.value
+  )
   const departments = ref<string[]>([])
   const search = ref<Record<string, unknown>>({ keyword: '', dateRange: [], status: '' })
   const { confirmAction } = useArtFeedback()
@@ -122,30 +134,30 @@
   const metrics = computed<BusinessWorkspaceMetric[]>(() => [
     {
       label: '维修工单',
-      value: total.value,
+      value: metricsReady.value ? total.value : '—',
       description: '当前可见范围',
       icon: 'ri:file-list-3-line'
     },
     {
       label: '维修中',
-      value: rows.value.filter((r) => r.status === 'in_progress').length,
+      value: metricsReady.value ? rows.value.filter((r) => r.status === 'in_progress').length : '—',
       description: '正在处置',
       icon: 'ri:loader-4-line',
       tone: 'primary'
     },
     {
       label: '已完成',
-      value: completed.value,
+      value: metricsReady.value ? completed.value : '—',
       description: '本页已闭环',
       icon: 'ri:checkbox-circle-line',
       tone: 'success'
     },
     {
       label: '已逾期',
-      value: overdue.value,
+      value: metricsReady.value ? overdue.value : '—',
       description: '优先处理',
       icon: 'ri:alarm-warning-line',
-      tone: overdue.value ? 'danger' : 'info'
+      tone: metricsReady.value && overdue.value ? 'danger' : 'info'
     }
   ])
   const searchItems = computed<SearchFormItem[]>(() => [
@@ -176,20 +188,20 @@
       }
     }
   ])
-  const fetchData = async (params: Record<string, unknown>) => {
+  const fetchData = (params: Record<string, unknown>, options?: ApiRequestOptions) => {
     const range = Array.isArray(params.dateRange) ? params.dateRange.map(String) : []
-    const result = await fetchPmisRepairTasks({
-      current: Number(params.current || 1),
-      size: Number(params.size || 20),
-      keyword: String(params.keyword || ''),
-      status: String(params.status || '') || undefined,
-      dateFrom: range[0],
-      dateTo: range[1],
-      departmentIds: departments.value
-    })
-    rows.value = result.data
-    total.value = result.total
-    return result
+    return fetchPmisRepairTasks(
+      {
+        current: Number(params.current || 1),
+        size: Number(params.size || 20),
+        keyword: String(params.keyword || ''),
+        status: String(params.status || '') || undefined,
+        dateFrom: range[0],
+        dateTo: range[1],
+        departmentIds: departments.value
+      },
+      { signal: options?.signal, showErrorMessage: false }
+    )
   }
   const refresh = () => void tableRef.value?.refreshData()
   const changeDepartment = (ids: string[]) => {

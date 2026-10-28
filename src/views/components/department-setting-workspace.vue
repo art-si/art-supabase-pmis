@@ -80,6 +80,8 @@
 </template>
 
 <script setup lang="tsx">
+  import { compact, uniq } from 'lodash-es'
+  import type { ApiRequestOptions } from '@/types/api/request'
   import ArtDescriptions from '@/components/core/base/art-descriptions/index.vue'
   import ArtDictDisplay from '@/components/core/base/art-dict-display/index.vue'
   import ArtButtonTable from '@/components/core/forms/art-button-table/index.vue'
@@ -117,8 +119,16 @@
   const drawerRef = ref<ArtDrawerExpose<PmisDepartmentSetting>>()
   const detailRow = shallowRef<PmisDepartmentSetting>()
   const departmentIds = ref<string[]>([])
-  const rows = shallowRef<PmisDepartmentSetting[]>([])
-  const total = ref(0)
+  const rows = computed(
+    () => (tableRef.value?.dataState.rows.value ?? []) as readonly PmisDepartmentSetting[]
+  )
+  const total = computed(() => tableRef.value?.dataState.pagination.value?.total ?? 0)
+  const metricsReady = computed(
+    () =>
+      tableRef.value?.dataState &&
+      !tableRef.value.dataState.loading.value &&
+      !tableRef.value.dataState.error.value
+  )
   const tenantScope = useTenantScopeStore()
   const { effectiveTenantId } = storeToRefs(tenantScope)
   const { confirmAction } = useArtFeedback()
@@ -150,38 +160,45 @@
       .map((item) => item.employee?.employeeName)
       .filter(Boolean)
       .join('、') || '—'
+  const employeeCount = computed(() => {
+    const assignments = rows.value.flatMap((row) => row.employees)
+    const ids = compact(assignments.map((item) => item.employee?.id))
+    return ids.length === assignments.length ? uniq(ids).length : '—'
+  })
   const metrics = computed<BusinessWorkspaceMetric[]>(() => [
     {
       label: '已配置部门',
-      value: total.value,
+      value: metricsReady.value ? total.value : '—',
       description: '当前可见范围',
       icon: 'ri:building-2-line'
     },
     {
       label: '执行人员',
-      value: new Set(
-        rows.value.flatMap((row) => row.employees.map((item) => item.employee?.id).filter(Boolean))
-      ).size,
+      value: metricsReady.value ? employeeCount.value : '—',
       description: '去重人员',
       icon: 'ri:team-line',
       tone: 'primary'
     },
     {
       label: '升级规则',
-      value: rows.value.reduce((sum, row) => sum + row.escalationRules.length, 0),
+      value: metricsReady.value
+        ? rows.value.reduce((sum, row) => sum + row.escalationRules.length, 0)
+        : '—',
       description: '启用中的通知规则',
       icon: 'ri:alarm-warning-line',
       tone: 'warning'
     }
   ])
-  const fetchData = async () => {
-    const result = await fetchPmisDepartmentSettings(props.kind, {
-      departmentIds: departmentIds.value
-    })
-    rows.value = result.data
-    total.value = result.total
-    return result
-  }
+  const fetchData = (params: Record<string, unknown>, options?: ApiRequestOptions) =>
+    fetchPmisDepartmentSettings(
+      props.kind,
+      {
+        current: Number(params.current || 1),
+        size: Number(params.size || 20),
+        departmentIds: departmentIds.value
+      },
+      { ...options, showErrorMessage: false }
+    )
   const refresh = () => void tableRef.value?.refreshData()
   const changeDepartment = (ids: string[]) => {
     departmentIds.value = ids

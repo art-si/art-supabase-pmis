@@ -68,6 +68,7 @@
 
 <script setup lang="tsx">
   import { createDateTimeFormatter } from '@/utils/ui/format'
+  import { compact, uniq } from 'lodash-es'
 
   import BusinessTableRowActions from '@/components/business/business-table-row-actions/index.vue'
   import ArtButtonMore, {
@@ -89,6 +90,7 @@
     ArtTableQueryHeaderAction,
     ArtTableQueryHeaderActionContext
   } from '@/components/core/tables/art-table-query/index.vue'
+  import type { ApiRequestOptions } from '@/types/api/request'
   import type { ColumnOption } from '@/types'
   import { useAuth } from '@/hooks/core/useAuth'
   import { useArtFeedback } from '@/hooks/core/useArtFeedback'
@@ -128,8 +130,14 @@
   const dialogRef = ref<DialogExpose>()
   const drawerRef = ref<ArtDrawerExpose<PmisPlan>>()
   const detailRow = shallowRef<PmisPlan>()
-  const total = ref(0)
-  const rows = shallowRef<PmisPlan[]>([])
+  const total = computed(() => tableRef.value?.dataState.pagination.value?.total ?? 0)
+  const rows = computed(() => (tableRef.value?.dataState.rows.value ?? []) as readonly PmisPlan[])
+  const metricsReady = computed(
+    () =>
+      tableRef.value?.dataState &&
+      !tableRef.value.dataState.loading.value &&
+      !tableRef.value.dataState.error.value
+  )
   const config = computed(() => pmisKindConfig(props.kind))
   const kindLabel = computed(() => config.value.label)
   const itemNoun = computed(() =>
@@ -138,36 +146,36 @@
   const permissions = computed(() => pmisPlanPermissions[props.kind])
   const description = computed(() => config.value.description)
   const enabledCount = computed(() => rows.value.filter((row) => row.status === 'enabled').length)
-  const boundEquipmentCount = computed(
-    () =>
-      new Set(rows.value.flatMap((row) => row.equipmentBindings.map((item) => item.equipment?.id)))
-        .size
-  )
+  const boundEquipmentCount = computed(() => {
+    const bindings = rows.value.flatMap((row) => row.equipmentBindings)
+    const ids = compact(bindings.map((item) => item.equipment?.id))
+    return ids.length === bindings.length ? uniq(ids).length : '—'
+  })
   const itemCount = computed(() => rows.value.reduce((sum, row) => sum + row.items.length, 0))
   const metrics = computed<BusinessWorkspaceMetric[]>(() => [
     {
       label: '方案总数',
-      value: total.value,
+      value: metricsReady.value ? total.value : '—',
       description: '当前可见范围',
       icon: 'ri:file-list-3-line'
     },
     {
       label: '启用方案',
-      value: enabledCount.value,
+      value: metricsReady.value ? enabledCount.value : '—',
       description: '正在生成任务',
       icon: 'ri:checkbox-circle-line',
       tone: 'success'
     },
     {
       label: '覆盖设备',
-      value: boundEquipmentCount.value,
+      value: metricsReady.value ? boundEquipmentCount.value : '—',
       description: '去重设备数量',
       icon: 'ri:tools-line',
       tone: 'primary'
     },
     {
       label: itemNoun.value,
-      value: itemCount.value,
+      value: metricsReady.value ? itemCount.value : '—',
       description: '当前页项目总数',
       icon: 'ri:list-check-3',
       tone: 'info'
@@ -188,22 +196,20 @@
     }
   ])
   void userStore.ensureDictLoaded('commonEnabledStatus')
-  const fetchData = async (params: Record<string, unknown>) => {
-    const result = await fetchPmisPlans(props.kind, {
-      current: Number(params.current || 1),
-      size: Number(params.size || 20),
-      keyword: String(params.keyword || ''),
-      status: String(params.status || '') || undefined
-    })
-    total.value = result.total
-    rows.value = result.data
-    return result
-  }
+  const fetchData = (params: Record<string, unknown>, options?: ApiRequestOptions) =>
+    fetchPmisPlans(
+      props.kind,
+      {
+        current: Number(params.current || 1),
+        size: Number(params.size || 20),
+        keyword: String(params.keyword || ''),
+        status: String(params.status || '') || undefined
+      },
+      { ...options, showErrorMessage: false }
+    )
   watch(
     () => tenantScopeStore.revision,
     () => {
-      rows.value = []
-      total.value = 0
       void tableRef.value?.refreshContext()
     }
   )

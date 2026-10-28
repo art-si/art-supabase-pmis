@@ -123,6 +123,7 @@
     ArtTableQueryHeaderAction
   } from '@/components/core/tables/art-table-query/index.vue'
   import type { ColumnOption } from '@/types'
+  import type { ApiRequestOptions } from '@/types/api/request'
   import { useAuth } from '@/hooks/core/useAuth'
   import { useArtFeedback } from '@/hooks/core/useArtFeedback'
   import { useDictionaryOptions } from '@/hooks/core/useDictionaryOptions'
@@ -165,8 +166,14 @@
     dateRange: [],
     status: ''
   })
-  const pageRows = shallowRef<PmisTask[]>([])
-  const total = ref(0)
+  const rows = computed(() => (tableRef.value?.dataState.rows.value ?? []) as PmisTask[])
+  const total = computed(() => tableRef.value?.dataState.pagination.value?.total ?? 0)
+  const metricsReady = computed(
+    () =>
+      tableRef.value?.dataState &&
+      !tableRef.value.dataState.loading.value &&
+      !tableRef.value.dataState.error.value
+  )
   const departmentIds = ref<string[]>([])
   const departmentLabel = ref('全部产线')
   const config = computed(() => pmisKindConfig(props.kind))
@@ -184,35 +191,35 @@
       ? `按产线、计划日期与执行状态跟踪设备${kindLabel.value}任务，延误任务优先暴露。`
       : `按设备、日期与结果集中追溯${kindLabel.value}记录，支持查看项目明细与批量导出。`
   )
-  const overview = computed(() => summarizePmisTasks(pageRows.value))
+  const overview = computed(() => summarizePmisTasks(rows.value))
   const overdueCount = computed(() => overview.value.overdue)
   const metrics = computed<BusinessWorkspaceMetric[]>(() => [
     {
       label: '任务总数',
-      value: total.value,
+      value: metricsReady.value ? total.value : '—',
       description: departmentLabel.value,
       icon: 'ri:file-list-3-line'
     },
     {
       label: '已完成',
-      value: overview.value.completed,
-      description: `完成率 ${overview.value.completionRate}%`,
+      value: metricsReady.value ? overview.value.completed : '—',
+      description: metricsReady.value ? `完成率 ${overview.value.completionRate}%` : '完成率 —',
       icon: 'ri:checkbox-circle-line',
       tone: 'success'
     },
     {
       label: '计划中',
-      value: overview.value.pending,
+      value: metricsReady.value ? overview.value.pending : '—',
       description: '尚未到期',
       icon: 'ri:time-line',
       tone: 'warning'
     },
     {
       label: '已延误',
-      value: overview.value.overdue,
+      value: metricsReady.value ? overview.value.overdue : '—',
       description: '需要优先处理',
       icon: 'ri:alarm-warning-line',
-      tone: overview.value.overdue ? 'danger' : 'info'
+      tone: metricsReady.value && overview.value.overdue ? 'danger' : 'info'
     }
   ])
   const searchItems = computed<SearchFormItem[]>(() => [
@@ -240,20 +247,21 @@
       props: { clearable: true, options: taskStatusOptions }
     }
   ])
-  const fetchData = async (params: Record<string, unknown>) => {
+  const fetchData = (params: Record<string, unknown>, options?: ApiRequestOptions) => {
     const range = Array.isArray(params.dateRange) ? params.dateRange.map(String) : []
-    const result = await fetchPmisTasks(props.kind, {
-      current: Number(params.current || 1),
-      size: Number(params.size || 20),
-      keyword: String(params.keyword || ''),
-      status: String(params.status || '') || undefined,
-      dateFrom: range[0],
-      dateTo: range[1],
-      departmentIds: departmentIds.value
-    })
-    pageRows.value = result.data
-    total.value = result.total
-    return result
+    return fetchPmisTasks(
+      props.kind,
+      {
+        current: Number(params.current || 1),
+        size: Number(params.size || 20),
+        keyword: String(params.keyword || ''),
+        status: String(params.status || '') || undefined,
+        dateFrom: range[0],
+        dateTo: range[1],
+        departmentIds: departmentIds.value
+      },
+      { signal: options?.signal, showErrorMessage: false }
+    )
   }
   const changeDepartments = (ids: string[], label: string): void => {
     departmentIds.value = ids

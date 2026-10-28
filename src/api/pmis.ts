@@ -1,5 +1,7 @@
 import { toDateStartTimestamp } from '@/utils/time/date-boundary'
-import type { ApiFeedbackOptions } from '@/types/api/request'
+import { loadAllLinePages } from '@/utils/business/document-detail-list'
+import type { ApiFeedbackOptions, ApiRequestOptions } from '@/types/api/request'
+import { withRequestOptions } from '@/api/providers/supabase/query'
 import dayjs from 'dayjs'
 import { omit } from 'lodash-es'
 import { useSupabase } from '@/hooks/core/useSupabase'
@@ -73,28 +75,45 @@ const normalizeTask = (task: PmisTask): PmisTask => ({
   displayStatus: displayStatus(task)
 })
 
-export async function fetchPmisDepartments(tenantId?: string): Promise<PmisDepartmentOption[]> {
+export async function fetchPmisDepartments(
+  tenantId?: string,
+  options: ApiRequestOptions & ApiFeedbackOptions = {}
+): Promise<PmisDepartmentOption[]> {
   const scopedTenantId = resolveTenantScopeId(tenantId)
-  const result = await responseHandle<PmisDepartmentOption[]>(
-    () => {
-      let query = supabase
-        .from('mdm_production_department')
-        .select('id,tenant_id,parent_id,department_code:code,department_name:name')
-        .eq('enabled', true)
-        .order('sort')
-        .order('name')
-      if (scopedTenantId) query = query.eq('tenant_id', scopedTenantId)
-      return query
+  const result = await fetchAllRangePages<PmisDepartmentOption>(
+    async ({ from, to }) => {
+      const page = await responseHandle<PmisDepartmentOption[]>(
+        () => {
+          let query = supabase
+            .from('mdm_production_department')
+            .select('id,tenant_id,parent_id,department_code:code,department_name:name')
+            .eq('enabled', true)
+            .order('sort')
+            .order('name')
+            .order('id')
+            .range(from, to)
+          if (scopedTenantId) query = query.eq('tenant_id', scopedTenantId)
+          return withRequestOptions(query, options)
+        },
+        {
+          breakReturn: true,
+          showErrorMessage: options.showErrorMessage ?? true,
+          errorMessage: '部门与产线加载失败，请重试'
+        }
+      )
+      return { data: page.data ?? null, error: null }
     },
-    { showErrorMessage: true, errorMessage: '部门与产线加载失败，请重试' }
+    { pageSize: snapshotPageSize }
   )
+  if (result.error) throw result.error
   return result.data ?? []
 }
 
 export async function fetchPmisDepartmentTree(
-  tenantId?: string
+  tenantId?: string,
+  options: ApiRequestOptions & ApiFeedbackOptions = {}
 ): Promise<PmisDepartmentTreeOption[]> {
-  const departments = await fetchPmisDepartments(tenantId)
+  const departments = await fetchPmisDepartments(tenantId, options)
   const treeUtils = new TreeUtils({
     idKey: 'id',
     parentKey: 'parentId',
@@ -105,8 +124,8 @@ export async function fetchPmisDepartmentTree(
 
 export async function fetchPmisEquipmentOptions(
   params: PmisPageQuery = {},
-  options: ApiFeedbackOptions = {}
-) {
+  options: ApiRequestOptions & ApiFeedbackOptions = {}
+): Promise<{ data: PmisEquipmentOption[]; total: number }> {
   const scopedTenantId = resolveTenantScopeId(params.tenantId)
   const pageRange = buildSupabasePageRange({
     current: params.current ?? 1,
@@ -125,15 +144,33 @@ export async function fetchPmisEquipmentOptions(
     )
   if (params.departmentId) query = query.eq('production_department_id', params.departmentId)
   if (scopedTenantId) query = query.eq('tenant_id', scopedTenantId)
-  const result = await responseHandle<PmisEquipmentOption[]>(() => query, {
-    breakReturn: true,
-    showErrorMessage: options.showErrorMessage ?? true,
-    errorMessage: '设备列表加载失败，请重试'
-  })
+  const result = await responseHandle<PmisEquipmentOption[]>(
+    () => withRequestOptions(query, options),
+    {
+      breakReturn: true,
+      showErrorMessage: options.showErrorMessage ?? true,
+      errorMessage: '设备列表加载失败，请重试'
+    }
+  )
   return { data: result.data ?? [], total: result.total ?? 0 }
 }
 
-export async function fetchPmisPlans(kind: PmisPlanKind, params: PmisPageQuery = {}) {
+export async function fetchPmisEquipmentSnapshot(
+  params: Pick<PmisPageQuery, 'keyword' | 'departmentId' | 'tenantId'> = {},
+  options: ApiRequestOptions & ApiFeedbackOptions = {}
+): Promise<PmisEquipmentOption[]> {
+  return loadAllLinePages(
+    (page) => fetchPmisEquipmentOptions(page, options),
+    { ...params, current: 1, size: snapshotPageSize },
+    snapshotPageSize
+  )
+}
+
+export async function fetchPmisPlans(
+  kind: PmisPlanKind,
+  params: PmisPageQuery = {},
+  options: ApiRequestOptions & ApiFeedbackOptions = {}
+): Promise<{ data: PmisPlan[]; total: number }> {
   const scopedTenantId = resolveTenantScopeId(params.tenantId)
   const pageRange = buildSupabasePageRange({
     current: params.current ?? 1,
@@ -163,8 +200,9 @@ export async function fetchPmisPlans(kind: PmisPlanKind, params: PmisPageQuery =
   if (params.keyword?.trim()) query = query.ilike('plan_name', `%${params.keyword.trim()}%`)
   if (scopedTenantId) query = query.eq('tenant_id', scopedTenantId)
   if (params.status) query = query.eq('status', params.status)
-  const result = await responseHandle<PmisPlan[]>(() => query, {
-    showErrorMessage: true,
+  const result = await responseHandle<PmisPlan[]>(() => withRequestOptions(query, options), {
+    breakReturn: true,
+    showErrorMessage: options.showErrorMessage ?? true,
     errorMessage: `${planKindLabel(kind)}方案加载失败，请重试`
   })
   return { data: result.data ?? [], total: result.total ?? 0 }
@@ -200,7 +238,11 @@ export async function deletePmisPlans(ids: string[], kind: PmisPlanKind) {
   )
 }
 
-export async function fetchPmisTasks(kind: PmisPlanKind, params: PmisPageQuery = {}) {
+export async function fetchPmisTasks(
+  kind: PmisPlanKind,
+  params: PmisPageQuery = {},
+  options: ApiRequestOptions & ApiFeedbackOptions = {}
+): Promise<{ data: PmisTask[]; total: number }> {
   const scopedTenantId = resolveTenantScopeId(params.tenantId)
   const pageRange = buildSupabasePageRange({
     current: params.current ?? 1,
@@ -229,9 +271,9 @@ export async function fetchPmisTasks(kind: PmisPlanKind, params: PmisPageQuery =
   else if (params.status === 'pending')
     query = query.eq('status', 'pending').gte('planned_date', dayjs().format('YYYY-MM-DD'))
   else if (params.status) query = query.eq('status', params.status)
-  const result = await responseHandle<PmisTask[]>(() => query, {
+  const result = await responseHandle<PmisTask[]>(() => withRequestOptions(query, options), {
     breakReturn: true,
-    showErrorMessage: true,
+    showErrorMessage: options.showErrorMessage ?? true,
     errorMessage: `${planKindLabel(kind)}任务加载失败，请重试`
   })
   return {
@@ -288,9 +330,14 @@ export async function confirmPmisTask(taskId: string): Promise<void> {
 
 export async function fetchPmisDepartmentSettings(
   kind: 'maintenance' | 'repair',
-  params: PmisPageQuery = {}
-) {
+  params: PmisPageQuery = {},
+  options: ApiRequestOptions & ApiFeedbackOptions = {}
+): Promise<{ data: PmisDepartmentSetting[]; total: number }> {
   const scopedTenantId = resolveTenantScopeId(params.tenantId)
+  const pageRange = buildSupabasePageRange({
+    current: params.current ?? 1,
+    size: params.size ?? 20
+  })
   let query = supabase
     .from('pmis_department_setting')
     .select(
@@ -299,13 +346,19 @@ export async function fetchPmisDepartmentSettings(
     )
     .eq('setting_kind', kind)
     .order('update_time', { ascending: false })
+    .order('id')
+    .range(pageRange.from, pageRange.to)
   if (params.departmentId) query = query.eq('department_id', params.departmentId)
   if (scopedTenantId) query = query.eq('tenant_id', scopedTenantId)
   if (params.departmentIds?.length) query = query.in('department_id', params.departmentIds)
-  const result = await responseHandle<PmisDepartmentSetting[]>(() => query, {
-    showErrorMessage: true,
-    errorMessage: '部门设置加载失败，请重试'
-  })
+  const result = await responseHandle<PmisDepartmentSetting[]>(
+    () => withRequestOptions(query, options),
+    {
+      breakReturn: true,
+      showErrorMessage: options.showErrorMessage ?? true,
+      errorMessage: '部门设置加载失败，请重试'
+    }
+  )
   return { data: result.data ?? [], total: result.total ?? 0 }
 }
 
@@ -347,7 +400,10 @@ export async function deletePmisDepartmentSettings(
 
 const repairSelect = `id,tenant_id,work_order_no,urgency,fault_symptom,fault_photo_files,fault_analysis,fault_cause,solution,repair_photo_files,status,reported_at,required_complete_at,completed_at,confirmed_at,equipment:mdm_equipment!pmis_repair_task_equipment_fkey!inner(${equipmentSelect}),reporter:mdm_employee!pmis_repair_task_reporter_fkey(id,employee_no,employee_name),repairer:mdm_employee!pmis_repair_task_repairer_fkey(id,employee_no,employee_name),confirmer:mdm_employee!pmis_repair_task_confirmer_fkey(id,employee_no,employee_name)`
 
-export async function fetchPmisRepairTasks(params: PmisPageQuery = {}) {
+export async function fetchPmisRepairTasks(
+  params: PmisPageQuery = {},
+  options: ApiRequestOptions & ApiFeedbackOptions = {}
+): Promise<{ data: PmisRepairTask[]; total: number }> {
   const scopedTenantId = resolveTenantScopeId(params.tenantId)
   const pageRange = buildSupabasePageRange({
     current: params.current ?? 1,
@@ -370,9 +426,9 @@ export async function fetchPmisRepairTasks(params: PmisPageQuery = {}) {
   if (params.status === 'overdue')
     query = query.neq('status', 'completed').lt('required_complete_at', new Date().toISOString())
   else if (params.status) query = query.eq('status', params.status)
-  const result = await responseHandle<PmisRepairTask[]>(() => query, {
+  const result = await responseHandle<PmisRepairTask[]>(() => withRequestOptions(query, options), {
     breakReturn: true,
-    showErrorMessage: true,
+    showErrorMessage: options.showErrorMessage ?? true,
     errorMessage: '维修工单加载失败，请重试'
   })
   const rows = (result.data ?? []).map((row) => ({
@@ -434,14 +490,22 @@ export async function completePmisTask(input: PmisTaskExecutionInput): Promise<v
   )
 }
 
-export async function fetchPmisTaskSnapshot(kind: PmisPlanKind, params: PmisPageQuery = {}) {
+export async function fetchPmisTaskSnapshot(
+  kind: PmisPlanKind,
+  params: PmisPageQuery = {},
+  options: ApiRequestOptions & ApiFeedbackOptions = {}
+): Promise<PmisTask[]> {
   const result = await fetchAllRangePages<PmisTask>(
     async ({ from, to }) => {
-      const { data, total } = await fetchPmisTasks(kind, {
-        ...params,
-        current: Math.floor(from / snapshotPageSize) + 1,
-        size: to - from + 1
-      })
+      const { data, total } = await fetchPmisTasks(
+        kind,
+        {
+          ...params,
+          current: Math.floor(from / snapshotPageSize) + 1,
+          size: to - from + 1
+        },
+        options
+      )
       return { data, total, error: null }
     },
     { pageSize: snapshotPageSize }
@@ -450,14 +514,20 @@ export async function fetchPmisTaskSnapshot(kind: PmisPlanKind, params: PmisPage
   return result.data ?? []
 }
 
-export async function fetchPmisRepairTaskSnapshot(params: PmisPageQuery = {}) {
+export async function fetchPmisRepairTaskSnapshot(
+  params: PmisPageQuery = {},
+  options: ApiRequestOptions & ApiFeedbackOptions = {}
+): Promise<PmisRepairTask[]> {
   const result = await fetchAllRangePages<PmisRepairTask>(
     async ({ from, to }) => {
-      const { data, total } = await fetchPmisRepairTasks({
-        ...params,
-        current: Math.floor(from / snapshotPageSize) + 1,
-        size: to - from + 1
-      })
+      const { data, total } = await fetchPmisRepairTasks(
+        {
+          ...params,
+          current: Math.floor(from / snapshotPageSize) + 1,
+          size: to - from + 1
+        },
+        options
+      )
       return { data, total, error: null }
     },
     { pageSize: snapshotPageSize }

@@ -21,7 +21,7 @@
       @click="clear"
     >
       <span class="art-icon-label"><ArtSvgIcon icon="ri:apps-2-line" />全部产线</span>
-      <strong>{{ departmentCount }}</strong>
+      <strong>{{ loading || error ? '—' : departmentCount }}</strong>
     </button>
 
     <ArtAsyncState
@@ -93,20 +93,29 @@
   const tenantScopeStore = useTenantScopeStore()
   const treeUtils = new TreeUtils({ idKey: 'id', parentKey: 'parentId', childrenKey: 'children' })
   const departmentCount = computed(() => treeUtils.treeToList(tree.value).length)
-  let loadVersion = 0
+  let loadController: AbortController | undefined
+  onScopeDispose(() => loadController?.abort())
 
   const load = async (): Promise<void> => {
-    const version = ++loadVersion
+    loadController?.abort()
+    const controller = new AbortController()
+    loadController = controller
     loading.value = true
     error.value = ''
     tree.value = []
     try {
-      const departments = await fetchPmisDepartmentTree()
-      if (version === loadVersion) tree.value = departments
+      const departments = await fetchPmisDepartmentTree(undefined, {
+        signal: controller.signal,
+        showErrorMessage: false
+      })
+      if (!controller.signal.aborted) tree.value = departments
     } catch {
-      if (version === loadVersion) error.value = '部门与产线加载失败，请重试。'
+      if (!controller.signal.aborted) error.value = '部门与产线加载失败，请重试。'
     } finally {
-      if (version === loadVersion) loading.value = false
+      if (loadController === controller) {
+        if (!controller.signal.aborted) loading.value = false
+        loadController = undefined
+      }
     }
   }
   const clear = (): void => {

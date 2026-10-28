@@ -22,11 +22,34 @@
       </template>
     </BusinessWorkspaceHeader>
 
+    <ElAlert
+      v-if="scopeResources.departmentError || scopeResources.equipmentError"
+      title="部分筛选选项暂不可用"
+      type="warning"
+      :closable="false"
+      show-icon
+    >
+      <template #default>
+        <div class="flex flex-wrap items-center gap-2">
+          <span>已加载的任务仍可查看，请重新加载筛选选项。</span>
+          <ElButton
+            type="primary"
+            link
+            :loading="scopeResources.loading"
+            @click="loadScopeResources"
+            >重新加载筛选</ElButton
+          >
+        </div>
+      </template>
+    </ElAlert>
+
     <ArtSectionCard
       :show-scrollbar="false"
       class="pmis-dashboard__surface"
       title="当日点检状态"
-      :subtitle="`共 ${filteredTasks.length} 台次 · ${filterCaption}`"
+      :subtitle="
+        metricsReady ? `共 ${filteredTasks.length} 台次 · ${filterCaption}` : filterCaption
+      "
       :loading="state.loading"
       :error="state.error"
       :empty="!state.loading && !state.error && filteredTasks.length === 0"
@@ -45,14 +68,18 @@
             filterable
             check-strictly
             default-expand-all
-            placeholder="全部产线"
+            :placeholder="scopeResources.departmentError ? '部门加载失败' : '全部产线'"
+            :loading="scopeResources.loading"
+            :disabled="scopeResources.loading || scopeResources.departmentError"
             aria-label="筛选部门或产线"
           />
           <ElSelect
             v-model="filters.equipmentId"
             clearable
             filterable
-            placeholder="全部设备"
+            :placeholder="scopeResources.equipmentError ? '设备加载失败' : '全部设备'"
+            :loading="scopeResources.loading"
+            :disabled="scopeResources.loading || scopeResources.equipmentError"
             aria-label="筛选设备"
           >
             <ElOption
@@ -161,7 +188,7 @@
   import { useTenantScopeStore } from '@/store/modules/tenant-scope'
   import {
     fetchPmisDepartmentTree,
-    fetchPmisEquipmentOptions,
+    fetchPmisEquipmentSnapshot,
     fetchPmisTaskSnapshot,
     summarizePmisTasks,
     type PmisDepartmentTreeOption,
@@ -178,11 +205,13 @@
   const detailTask = shallowRef<PmisTask>()
   const departments = shallowRef<PmisDepartmentTreeOption[]>([])
   const equipment = shallowRef<PmisEquipmentOption[]>([])
+  const scopeResources = reactive({ loading: false, departmentError: false, equipmentError: false })
   const state = reactive<{ loading: boolean; error: string; tasks: PmisTask[] }>({
     loading: false,
     error: '',
     tasks: []
   })
+  const metricsReady = computed(() => !state.loading && !state.error)
   const filters = reactive<{
     departmentId: string
     equipmentId: string
@@ -226,30 +255,30 @@
   const metrics = computed<BusinessWorkspaceMetric[]>(() => [
     {
       label: '当日任务',
-      value: overview.value.total,
+      value: metricsReady.value ? overview.value.total : '—',
       description: '当前筛选范围',
       icon: 'ri:calendar-check-line'
     },
     {
       label: '已检',
-      value: overview.value.completed,
-      description: `完成率 ${overview.value.completionRate}%`,
+      value: metricsReady.value ? overview.value.completed : '—',
+      description: metricsReady.value ? `完成率 ${overview.value.completionRate}%` : '完成率 —',
       icon: 'ri:checkbox-circle-line',
       tone: 'success'
     },
     {
       label: '未检',
-      value: overview.value.pending,
+      value: metricsReady.value ? overview.value.pending : '—',
       description: '等待现场执行',
       icon: 'ri:time-line',
       tone: 'warning'
     },
     {
       label: '延误',
-      value: overview.value.overdue,
+      value: metricsReady.value ? overview.value.overdue : '—',
       description: '优先补检',
       icon: 'ri:alarm-warning-line',
-      tone: overview.value.overdue ? 'danger' : 'info'
+      tone: metricsReady.value && overview.value.overdue ? 'danger' : 'info'
     }
   ])
   const filterCaption = computed(
@@ -262,21 +291,35 @@
         .filter(Boolean)
         .join(' · ') || '全部设备'
   )
-  let loadVersion = 0
+  let taskReadController: AbortController | undefined
+  let scopeReadController: AbortController | undefined
+  onScopeDispose(() => {
+    taskReadController?.abort()
+    scopeReadController?.abort()
+  })
   const load = async (): Promise<void> => {
-    const version = ++loadVersion
+    taskReadController?.abort()
+    const controller = new AbortController()
+    taskReadController = controller
     state.loading = true
     state.error = ''
     try {
-      const tasks = await fetchPmisTaskSnapshot('inspection', {
-        dateFrom: dayjs().format('YYYY-MM-DD'),
-        dateTo: dayjs().format('YYYY-MM-DD')
-      })
-      if (version === loadVersion) state.tasks = tasks
+      const tasks = await fetchPmisTaskSnapshot(
+        'inspection',
+        {
+          dateFrom: dayjs().format('YYYY-MM-DD'),
+          dateTo: dayjs().format('YYYY-MM-DD')
+        },
+        { signal: controller.signal, showErrorMessage: false }
+      )
+      if (!controller.signal.aborted) state.tasks = tasks
     } catch {
-      if (version === loadVersion) state.error = '点检看板加载失败，请重试。'
+      if (!controller.signal.aborted) state.error = '点检看板加载失败，请重试。'
     } finally {
-      if (version === loadVersion) state.loading = false
+      if (taskReadController === controller) {
+        if (!controller.signal.aborted) state.loading = false
+        taskReadController = undefined
+      }
     }
   }
   const showDetail = async (task: PmisTask): Promise<void> => {
@@ -347,30 +390,45 @@
     pause()
     resume()
   })
-  let scopeLoadVersion = 0
+  onActivated(resume)
+  onDeactivated(pause)
   const loadScopeResources = async (): Promise<void> => {
-    const version = ++scopeLoadVersion
-    ++loadVersion
+    scopeReadController?.abort()
+    const controller = new AbortController()
+    scopeReadController = controller
+    scopeResources.loading = true
+    scopeResources.departmentError = false
+    scopeResources.equipmentError = false
+    try {
+      const options = { signal: controller.signal, showErrorMessage: false }
+      const [departmentResult, equipmentResult] = await Promise.allSettled([
+        fetchPmisDepartmentTree(undefined, options),
+        fetchPmisEquipmentSnapshot({}, options)
+      ])
+      if (controller.signal.aborted) return
+      scopeResources.departmentError = departmentResult.status === 'rejected'
+      scopeResources.equipmentError = equipmentResult.status === 'rejected'
+      if (departmentResult.status === 'fulfilled') departments.value = departmentResult.value
+      if (equipmentResult.status === 'fulfilled') equipment.value = equipmentResult.value
+    } finally {
+      if (scopeReadController === controller) {
+        if (!controller.signal.aborted) scopeResources.loading = false
+        scopeReadController = undefined
+      }
+    }
+  }
+  const resetScope = (): void => {
     filters.departmentId = ''
     filters.equipmentId = ''
     departments.value = []
     equipment.value = []
     state.tasks = []
     void load()
-    const [departmentResult, equipmentResult] = await Promise.allSettled([
-      fetchPmisDepartmentTree(),
-      fetchPmisEquipmentOptions({ current: 1, size: 500 })
-    ])
-    if (version !== scopeLoadVersion) return
-    if (departmentResult.status === 'fulfilled') departments.value = departmentResult.value
-    if (equipmentResult.status === 'fulfilled') equipment.value = equipmentResult.value.data
+    void loadScopeResources()
   }
   void userStore.ensureDictLoaded('pmisTaskStatus')
-  watch(
-    () => tenantScopeStore.revision,
-    () => void loadScopeResources()
-  )
-  void loadScopeResources()
+  watch(() => tenantScopeStore.revision, resetScope)
+  resetScope()
 </script>
 
 <style scoped lang="scss">

@@ -38,6 +38,8 @@
   import { replaceReactiveModel } from '@/utils/form/model'
   import { normalizeNullableText } from '@/utils/form/normalize'
   import type { FormRules } from 'element-plus'
+  import { notifyFriendlyError } from '@/hooks/core/useArtFeedback'
+  import { useTenantScopeStore } from '@/store/modules/tenant-scope'
   import ArtDialog from '@/components/core/dialogs/art-dialog/index.vue'
   import type { ArtDialogExpose } from '@/components/core/dialogs/art-dialog/types'
   import ArtForm, { type FormItem } from '@/components/core/forms/art-form/index.vue'
@@ -70,10 +72,21 @@
     executionSummary: string
   }
   const emit = defineEmits<{ success: [] }>()
+  const tenantScopeStore = useTenantScopeStore()
   const dialogRef = ref<ArtDialogExpose<TaskEditorOpenData>>()
   const formRef = ref<{ validate: () => Promise<boolean>; clearValidate: () => void }>()
   const kind = ref<PmisPlanKind>('maintenance')
   const plans = shallowRef<PmisPlan[]>([])
+  let planLoadController: AbortController | undefined
+  onScopeDispose(() => planLoadController?.abort())
+  watch(
+    () => tenantScopeStore.revision,
+    () => {
+      planLoadController?.abort()
+      void dialogRef.value?.handleClose()
+    },
+    { flush: 'sync' }
+  )
   const selectedEquipment = shallowRef<PmisEquipmentOption[]>([])
   const selectedResponsible = shallowRef<EmployeeIntegrationItem[]>([])
   const initial = (): FormModel => ({
@@ -149,6 +162,9 @@
     return true
   }
   const handleOpen = async (data: TaskEditorOpenData) => {
+    planLoadController?.abort()
+    const controller = new AbortController()
+    planLoadController = controller
     kind.value = data.kind
     plans.value = []
     Object.assign(form, initial())
@@ -179,16 +195,27 @@
       loading: true,
       loadingText: '正在加载可用计划…',
       onOpen: async (_openData, api) => {
+        const isCurrent = () => !controller.signal.aborted && api.visible.value
         await nextTick()
+        if (!isCurrent()) return
         formRef.value?.clearValidate()
         try {
-          plans.value = (
-            await fetchPmisPlans(data.kind, { current: 1, size: 500, status: 'enabled' })
-          ).data
+          const result = await fetchPmisPlans(
+            data.kind,
+            { current: 1, size: 500, status: 'enabled' },
+            { signal: controller.signal, showErrorMessage: false }
+          )
+          if (isCurrent()) plans.value = result.data
+        } catch (error) {
+          if (!isCurrent()) return
+          notifyFriendlyError(error, '可用方案加载失败，请重新打开任务重试')
+          await api.handleClose()
         } finally {
-          api.setLoading(false)
+          if (isCurrent()) api.setLoading(false)
+          if (planLoadController === controller) planLoadController = undefined
         }
       },
+      onClose: () => controller.abort(),
       onConfirm: submit
     })
   }

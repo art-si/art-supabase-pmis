@@ -1,1 +1,0 @@
-import{Un as e,Zn as t,gr as n}from"./supabase-BLA-4-gs.js";import{t as r}from"./plan-workspace-BoCnebK3.js";var i=t({name:`PmisPatrolPlan`,__name:`index`,setup(t){return(t,i)=>(n(),e(r,{kind:`patrol`}))}});export{i as default};

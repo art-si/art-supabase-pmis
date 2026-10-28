@@ -177,7 +177,7 @@
   import { useUserStore } from '@/store/modules/user'
   import { useTenantScopeStore } from '@/store/modules/tenant-scope'
   import {
-    fetchPmisEquipmentOptions,
+    fetchPmisEquipmentSnapshot,
     fetchPmisTaskSnapshot,
     summarizePmisTasks,
     type PmisEquipmentOption,
@@ -553,11 +553,8 @@
     equipmentOptions.value = []
     equipmentError.value = ''
     try {
-      const result = await fetchPmisEquipmentOptions(
-        { current: 1, size: 500 },
-        { showErrorMessage: false }
-      )
-      if (version === equipmentLoadVersion) equipmentOptions.value = result.data
+      const result = await fetchPmisEquipmentSnapshot({}, { showErrorMessage: false })
+      if (version === equipmentLoadVersion) equipmentOptions.value = result
     } catch {
       if (version === equipmentLoadVersion)
         equipmentError.value = '设备列表加载失败；任务日历仍可查看。'
