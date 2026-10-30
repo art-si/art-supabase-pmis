@@ -11,8 +11,11 @@
       :icon="mode === 'sheet' ? config.icon : 'ri:table-view'"
       :tags="[
         { label: monthCaption, type: 'primary' },
-        { label: departmentLabel, type: 'info' },
-        { label: `${overview.overdue} 项延误`, type: overview.overdue ? 'danger' : 'success' }
+        { label: displayScope.departmentLabel, type: 'info' },
+        {
+          label: metricsReady ? `${overview.overdue} 项延误` : '延误 —',
+          type: !metricsReady ? 'info' : overview.overdue ? 'danger' : 'success'
+        }
       ]"
       :metrics="metrics"
     >
@@ -21,6 +24,7 @@
           v-auth="exportPermission"
           :data="exportRows"
           :columns="exportColumns"
+          :disabled="!metricsReady"
           :filename="mode === 'sheet' ? `设备${kindLabel}表` : `${kindLabel}明细表`"
           :sheet-name="monthCaption"
           button-text="导出"
@@ -69,18 +73,19 @@
           </ElAlert>
           <ArtSectionCard
             root-class="pmis-calendar__matrix-card"
+            :body-class="state.error ? 'is-compact' : ''"
             :title="mode === 'sheet' ? '设备日历矩阵' : `${kindLabel}项目日历矩阵`"
             :subtitle="matrixSubtitle"
             :loading="state.loading"
             :error="state.error"
             :empty="!state.loading && !state.error && matrixRows.length === 0"
             :empty-title="
-              mode === 'detail' && !query.equipmentId
+              mode === 'detail' && !displayScope.equipmentId
                 ? '请先选择设备'
                 : `当前范围暂无${kindLabel}任务`
             "
             :empty-description="
-              mode === 'detail' && !query.equipmentId
+              mode === 'detail' && !displayScope.equipmentId
                 ? `选择一台设备后查看各${kindLabel}项目的每日完成情况。`
                 : `请确认已启用${kindLabel}方案并绑定适用设备。`
             "
@@ -155,7 +160,7 @@
 <script setup lang="tsx">
   import { replaceReactiveModel } from '@/utils/form/model'
   import dayjs from 'dayjs'
-  import { isEqual } from 'lodash-es'
+  import { groupBy, isEqual, uniqBy } from 'lodash-es'
   import ArtTooltip from '@/components/core/feedback/art-tooltip/index.vue'
   import ArtDescriptions from '@/components/core/base/art-descriptions/index.vue'
   import ArtDictDisplay from '@/components/core/base/art-dict-display/index.vue'
@@ -174,6 +179,7 @@
   } from '@/components/business/business-workspace-header/index.vue'
   import type { ColumnOption } from '@/types'
   import { useAuth } from '@/hooks/core/useAuth'
+  import { useTenantOperationGuard } from '@/hooks/core/useTenantOperationGuard'
   import { useUserStore } from '@/store/modules/user'
   import { useTenantScopeStore } from '@/store/modules/tenant-scope'
   import {
@@ -224,6 +230,9 @@
   })
   const query = reactive<CalendarQuery>(initialQuery())
   const tenantScopeStore = useTenantScopeStore()
+  const userStore = useUserStore()
+  const route = useRoute()
+  const captureTenantOperation = useTenantOperationGuard()
   const state = reactive<{ loading: boolean; error: string; tasks: PmisTask[] }>({
     loading: false,
     error: '',
@@ -233,6 +242,23 @@
   const equipmentError = ref('')
   const departmentIds = ref<string[]>([])
   const departmentLabel = ref('全部产线')
+  interface CalendarScope extends CalendarQuery {
+    departmentIds: string[]
+    departmentLabel: string
+  }
+  const captureScope = (): CalendarScope => ({
+    month: query.month,
+    equipmentId: query.equipmentId,
+    shiftName: query.shiftName,
+    departmentIds: [...departmentIds.value],
+    departmentLabel: departmentLabel.value
+  })
+  const activeScope = shallowRef<CalendarScope>(captureScope())
+  const acceptedScope = shallowRef<CalendarScope | null>(null)
+  const displayScope = computed(() => acceptedScope.value ?? activeScope.value)
+  const metricsReady = computed(
+    () => Boolean(acceptedScope.value) && !state.loading && !state.error
+  )
   const drawerRef = ref<ArtDrawerExpose<PmisTask>>()
   const executionRef = ref<{
     handleOpen: (data: PmisTaskExecutionDialogOpenData) => Promise<void>
@@ -242,8 +268,8 @@
   const exportPermission = computed(() => permissions.value.export)
   const viewPermission = computed(() => permissions.value.view)
   const executePermission = computed(() => permissions.value.execute ?? '')
-  const monthCaption = computed(() => dayjs(`${query.month}-01`).format('YYYY年MM月'))
-  const monthStart = computed(() => dayjs(`${query.month}-01`).startOf('month'))
+  const monthCaption = computed(() => dayjs(`${displayScope.value.month}-01`).format('YYYY年MM月'))
+  const monthStart = computed(() => dayjs(`${displayScope.value.month}-01`).startOf('month'))
   const monthEnd = computed(() => monthStart.value.endOf('month'))
   const days = computed(() =>
     Array.from({ length: monthEnd.value.date() }, (_, index) =>
@@ -254,30 +280,30 @@
   const metrics = computed<BusinessWorkspaceMetric[]>(() => [
     {
       label: '计划任务',
-      value: overview.value.total,
+      value: metricsReady.value ? overview.value.total : '—',
       description: monthCaption.value,
       icon: 'ri:calendar-line'
     },
     {
       label: completedLabel.value,
-      value: overview.value.completed,
-      description: `完成率 ${overview.value.completionRate}%`,
+      value: metricsReady.value ? overview.value.completed : '—',
+      description: metricsReady.value ? `完成率 ${overview.value.completionRate}%` : '完成率 —',
       icon: 'ri:checkbox-circle-line',
       tone: 'success'
     },
     {
       label: pendingLabel.value,
-      value: overview.value.pending,
+      value: metricsReady.value ? overview.value.pending : '—',
       description: '尚未到期',
       icon: 'ri:time-line',
       tone: 'warning'
     },
     {
       label: '延误',
-      value: overview.value.overdue,
+      value: metricsReady.value ? overview.value.overdue : '—',
       description: isInspectionKind.value ? '需优先补检' : '需优先处理',
       icon: 'ri:alarm-warning-line',
-      tone: overview.value.overdue ? 'danger' : 'info'
+      tone: metricsReady.value && overview.value.overdue ? 'danger' : 'info'
     }
   ])
   const searchItems = computed<SearchFormItem[]>(() => [
@@ -325,27 +351,25 @@
       (left, right) => statusWeight[right.displayStatus] - statusWeight[left.displayStatus]
     )[0]
   const matrixRows = computed<MatrixRow[]>(() => {
-    const filtered = query.equipmentId
-      ? state.tasks.filter((task) => task.equipment.id === query.equipmentId)
+    const filtered = displayScope.value.equipmentId
+      ? state.tasks.filter((task) => task.equipment.id === displayScope.value.equipmentId)
       : state.tasks
     if (props.mode === 'sheet') {
-      const equipment = new Map<string, PmisTask[]>()
-      filtered.forEach((task) =>
-        equipment.set(task.equipment.id, [...(equipment.get(task.equipment.id) ?? []), task])
-      )
-      return [...equipment.entries()].map(([id, tasks]) => ({
-        id,
-        identity: tasks[0].equipment.equipmentName,
-        secondary: tasks[0].equipment.equipmentCode,
-        tasksByDate: Object.fromEntries(
-          days.value.map((date) => [
-            date,
-            pickTask(tasks.filter((task) => task.plannedDate === date))
-          ])
-        )
-      }))
+      const equipmentTasks = groupBy(filtered, (task) => task.equipment.id)
+      return uniqBy(filtered, (task) => task.equipment.id).map(({ equipment }) => {
+        const tasks = equipmentTasks[equipment.id]
+        const byDate = groupBy(tasks, 'plannedDate')
+        return {
+          id: equipment.id,
+          identity: tasks[0].equipment.equipmentName,
+          secondary: tasks[0].equipment.equipmentCode,
+          tasksByDate: Object.fromEntries(
+            days.value.map((date) => [date, pickTask(byDate[date] ?? [])])
+          )
+        }
+      })
     }
-    if (!query.equipmentId) return []
+    if (!displayScope.value.equipmentId) return []
     const items = new Map<string, { item: PmisPlanItem; tasks: PmisTask[] }>()
     filtered.forEach((task) =>
       task.plan.items.forEach((item) => {
@@ -355,18 +379,18 @@
         items.set(key, current)
       })
     )
-    return [...items.entries()].map(([id, value]) => ({
-      id,
-      item: value.item,
-      identity: value.item.itemName,
-      secondary: `${value.item.requirement}（${filtered.find((task) => task.plan.items.some((item) => item.id === value.item.id))?.plan.planName || `${kindLabel.value}方案`}）`,
-      tasksByDate: Object.fromEntries(
-        days.value.map((date) => [
-          date,
-          pickTask(value.tasks.filter((task) => task.plannedDate === date))
-        ])
-      )
-    }))
+    return [...items.entries()].map(([id, value]) => {
+      const byDate = groupBy(value.tasks, 'plannedDate')
+      return {
+        id,
+        item: value.item,
+        identity: value.item.itemName,
+        secondary: `${value.item.requirement}（${filtered.find((task) => task.plan.items.some((item) => item.id === value.item.id))?.plan.planName || `${kindLabel.value}方案`}）`,
+        tasksByDate: Object.fromEntries(
+          days.value.map((date) => [date, pickTask(byDate[date] ?? [])])
+        )
+      }
+    })
   })
   const showTask = async (task?: PmisTask): Promise<void> => {
     if (!task || !hasAuth(viewPermission.value)) return
@@ -468,26 +492,42 @@
     }))
   ])
   const matrixSubtitle = computed(
-    () => `${monthCaption.value} · ${departmentLabel.value} · 单击状态单元格查看任务明细`
+    () =>
+      `${monthCaption.value} · ${displayScope.value.departmentLabel} · 单击状态单元格查看任务明细`
   )
   let loadVersion = 0
   const load = async (): Promise<void> => {
     const version = ++loadVersion
+    const isCurrentTenantOperation = captureTenantOperation()
+    const isCurrent = () => version === loadVersion && isCurrentTenantOperation()
+    const scope = captureScope()
+    activeScope.value = scope
+    acceptedScope.value = null
     state.loading = true
     state.error = ''
+    state.tasks = []
+    detailTask.value = undefined
+    drawerRef.value?.handleClose()
     try {
-      let tasks = await fetchPmisTaskSnapshot(props.kind, {
-        dateFrom: monthStart.value.format('YYYY-MM-DD'),
-        dateTo: monthEnd.value.format('YYYY-MM-DD'),
-        departmentIds: departmentIds.value,
-        equipmentId: query.equipmentId || undefined
-      })
-      if (query.shiftName) tasks = tasks.filter((task) => task.shiftName === query.shiftName)
-      if (version === loadVersion) state.tasks = tasks
+      const requestMonthStart = dayjs(`${scope.month}-01`).startOf('month')
+      let tasks = await fetchPmisTaskSnapshot(
+        props.kind,
+        {
+          dateFrom: requestMonthStart.format('YYYY-MM-DD'),
+          dateTo: requestMonthStart.endOf('month').format('YYYY-MM-DD'),
+          departmentIds: scope.departmentIds,
+          equipmentId: scope.equipmentId || undefined
+        },
+        { showErrorMessage: false }
+      )
+      if (scope.shiftName) tasks = tasks.filter((task) => task.shiftName === scope.shiftName)
+      if (!isCurrent()) return
+      state.tasks = tasks
+      acceptedScope.value = scope
     } catch {
-      if (version === loadVersion) state.error = `${kindLabel.value}日历加载失败，请重试。`
+      if (isCurrent()) state.error = `${kindLabel.value}日历加载失败，请重试。`
     } finally {
-      if (version === loadVersion) state.loading = false
+      if (isCurrent()) state.loading = false
     }
   }
   const changeDepartments = (ids: string[], label: string): void => {
@@ -550,24 +590,24 @@
   let equipmentLoadVersion = 0
   const loadEquipmentOptions = async (): Promise<void> => {
     const version = ++equipmentLoadVersion
+    const isCurrentTenantOperation = captureTenantOperation()
+    const isCurrent = () => version === equipmentLoadVersion && isCurrentTenantOperation()
     equipmentOptions.value = []
     equipmentError.value = ''
     try {
       const result = await fetchPmisEquipmentSnapshot({}, { showErrorMessage: false })
-      if (version === equipmentLoadVersion) equipmentOptions.value = result
+      if (isCurrent()) equipmentOptions.value = result
     } catch {
-      if (version === equipmentLoadVersion)
-        equipmentError.value = '设备列表加载失败；任务日历仍可查看。'
+      if (isCurrent()) equipmentError.value = '设备列表加载失败；任务日历仍可查看。'
     }
   }
-  void useUserStore().ensureDictLoaded('pmisResultStatus')
+  void userStore.ensureDictLoaded('pmisResultStatus')
   watch(
-    () => tenantScopeStore.revision,
+    [() => tenantScopeStore.revision, () => route.fullPath, () => userStore.getUserInfo.userId],
     () => {
       departmentIds.value = []
       departmentLabel.value = '全部产线'
       query.equipmentId = ''
-      state.tasks = []
       if (props.mode === 'detail') void loadEquipmentOptions()
       void load()
     },
@@ -575,6 +615,10 @@
     { flush: 'sync' }
   )
   if (props.mode === 'detail') void loadEquipmentOptions()
+  onScopeDispose(() => {
+    loadVersion++
+    equipmentLoadVersion++
+  })
   void load()
 </script>
 

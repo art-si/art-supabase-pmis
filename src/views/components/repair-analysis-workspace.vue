@@ -7,7 +7,7 @@
       icon="ri:bar-chart-grouped-line"
       :tags="[
         { label: dateCaption, type: 'primary' },
-        { label: '逾期优先', type: overdue ? 'danger' : 'success' }
+        { label: '逾期优先', type: !metricsReady ? 'info' : overdue ? 'danger' : 'success' }
       ]"
       :metrics="metrics"
     >
@@ -17,6 +17,7 @@
           :data="exportRows"
           :columns="exportColumns"
           filename="维修分析"
+          :disabled="!metricsReady"
           :sheet-name="dateCaption"
           button-text="导出分析"
           type="warning"
@@ -38,22 +39,22 @@
           :label-width="72"
           :show-expand="false"
           :is-expand="true"
-          :disabled-search="loading"
+          :disabled-search="state.loading"
           @search="load"
           @reset="reset" /><div class="pmis-repair-analysis__grid"
           ><ArtSectionCard
             title="维修人员任务排行"
             subtitle="按任务总量降序，结合闭环率与逾期负荷识别支援对象"
-            :loading="loading"
-            :error="error"
-            :empty="!loading && !error && ranking.length === 0"
+            :loading="state.loading"
+            :error="state.error"
+            :empty="!state.loading && !state.error && ranking.length === 0"
             empty-title="暂无人员绩效数据"
             empty-description="当前统计周期内没有维修工单，调整日期后可重新查询。"
             :min-height="380"
             @retry="load"
             ><template #actions
               ><ElTag type="primary" effect="plain" round
-                >{{ ranking.length }} 名人员</ElTag
+                >{{ metricsReady ? ranking.length : '—' }} 名人员</ElTag
               ></template
             ><div class="pmis-repair-analysis__ranking"
               ><article v-for="(item, index) in ranking" :key="item.id"
@@ -79,17 +80,20 @@
           ><ArtSectionCard
             title="维修状态分布"
             subtitle="当前统计周期内的工单结构与占比"
-            :loading="loading"
-            :error="error"
-            :empty="!loading && !error && rows.length === 0"
+            :loading="state.loading"
+            :error="state.error"
+            :empty="!state.loading && !state.error && state.rows.length === 0"
             empty-title="暂无状态分布"
             empty-description="维修工单进入当前周期后，将在这里形成状态结构。"
             :min-height="380"
             @retry="load"
             ><template #actions
-              ><ElTag :type="overdue ? 'danger' : 'success'" effect="plain" round>{{
-                overdue ? `${overdue} 单逾期` : '暂无逾期'
-              }}</ElTag></template
+              ><ElTag
+                :type="!metricsReady ? 'info' : overdue ? 'danger' : 'success'"
+                effect="plain"
+                round
+                >{{ !metricsReady ? '逾期 —' : overdue ? `${overdue} 单逾期` : '暂无逾期' }}</ElTag
+              ></template
             ><div class="pmis-repair-analysis__status"
               ><article v-for="item in statusCards" :key="item.status" :class="`is-${item.status}`"
                 ><span class="pmis-repair-analysis__status-icon"
@@ -113,6 +117,9 @@
 <script setup lang="ts">
   import { replaceReactiveModel } from '@/utils/form/model'
   import dayjs from 'dayjs'
+  import { groupBy } from 'lodash-es'
+  import { useRoute } from 'vue-router'
+  import { useTenantOperationGuard } from '@/hooks/core/useTenantOperationGuard'
   import ArtSearchBar, {
     type SearchFormItem
   } from '@/components/core/forms/art-search-bar/index.vue'
@@ -127,45 +134,71 @@
   import { useTenantScopeStore } from '@/store/modules/tenant-scope'
   import { fetchPmisRepairTaskSnapshot, type PmisRepairTask } from '@pmis/api'
   import { pmisRepairAnalysisPermission } from './business-permissions'
-  const initial = () => ({
+  interface RepairAnalysisQuery {
+    dateRange: string[] | null
+  }
+  type AnalysisDateRange = [string | undefined, string | undefined]
+  interface RepairAnalysisState {
+    loading: boolean
+    error: string
+    rows: PmisRepairTask[]
+    activeRange: AnalysisDateRange
+    acceptedRange: AnalysisDateRange | null
+  }
+  const initial = (): RepairAnalysisQuery => ({
     dateRange: [
       dayjs().startOf('month').format('YYYY-MM-DD'),
       dayjs().endOf('month').format('YYYY-MM-DD')
     ]
   })
-  const query = reactive(initial())
-  const rows = shallowRef<PmisRepairTask[]>([])
+  const query = reactive<RepairAnalysisQuery>(initial())
   const userStore = useUserStore()
   const tenantScopeStore = useTenantScopeStore()
-  const loading = ref(false)
-  const error = ref('')
-  const dateCaption = computed(() => `${query.dateRange[0]} 至 ${query.dateRange[1]}`)
-  const overdue = computed(() => rows.value.filter((r) => r.displayStatus === 'overdue').length)
-  const completed = computed(() => rows.value.filter((r) => r.status === 'completed').length)
+  const route = useRoute()
+  const workspacePath = route.path
+  const captureOperation = useTenantOperationGuard()
+  const state = shallowReactive<RepairAnalysisState>({
+    loading: false,
+    error: '',
+    rows: [],
+    activeRange: [query.dateRange?.[0], query.dateRange?.[1]],
+    acceptedRange: null
+  })
+  const dateCaption = computed(() => {
+    const range = state.acceptedRange ?? state.activeRange
+    return `${range[0] || '不限'} 至 ${range[1] || '不限'}`
+  })
+  const metricsReady = computed(
+    () => state.acceptedRange !== null && !state.loading && !state.error
+  )
+  const overdue = computed(() => state.rows.filter((r) => r.displayStatus === 'overdue').length)
+  const completed = computed(() => state.rows.filter((r) => r.status === 'completed').length)
   const metrics = computed<BusinessWorkspaceMetric[]>(() => [
     {
       label: '维修任务',
-      value: rows.value.length,
+      value: metricsReady.value ? state.rows.length : '—',
       description: dateCaption.value,
       icon: 'ri:file-list-3-line'
     },
     {
       label: '已完成',
-      value: completed.value,
-      description: `闭环率 ${rows.value.length ? Math.round((completed.value / rows.value.length) * 100) : 0}%`,
+      value: metricsReady.value ? completed.value : '—',
+      description: metricsReady.value
+        ? `闭环率 ${state.rows.length ? Math.round((completed.value / state.rows.length) * 100) : 0}%`
+        : '闭环率 —',
       icon: 'ri:checkbox-circle-line',
       tone: 'success'
     },
     {
       label: '维修中',
-      value: rows.value.filter((r) => r.status === 'in_progress').length,
+      value: metricsReady.value ? state.rows.filter((r) => r.status === 'in_progress').length : '—',
       description: '当前负荷',
       icon: 'ri:loader-4-line',
       tone: 'primary'
     },
     {
       label: '已逾期',
-      value: overdue.value,
+      value: metricsReady.value ? overdue.value : '—',
       description: '需要优先处理',
       icon: 'ri:alarm-warning-line',
       tone: overdue.value ? 'danger' : 'info'
@@ -179,13 +212,8 @@
       props: { valueFormat: 'YYYY-MM-DD', rangeSeparator: '至' }
     }
   ]
-  const ranking = computed(() => {
-    const groups = new Map<string, PmisRepairTask[]>()
-    rows.value.forEach((r) => {
-      const key = r.repairer?.id || 'unassigned'
-      groups.set(key, [...(groups.get(key) || []), r])
-    })
-    return [...groups.entries()]
+  const ranking = computed(() =>
+    Object.entries(groupBy(state.rows, (row) => row.repairer?.id || 'unassigned'))
       .map(([id, list]) => {
         const done = list.filter((r) => r.status === 'completed').length
         return {
@@ -201,25 +229,25 @@
         }
       })
       .sort((a, b) => b.total - a.total || b.overdue - a.overdue)
-  })
+  )
   const statusCards = computed(() => [
     {
       status: 'reported',
-      value: rows.value.filter((r) => r.status === 'reported').length,
+      value: state.rows.filter((r) => r.status === 'reported').length,
       icon: 'ri:inbox-archive-line',
-      percentage: percentageOf(rows.value.filter((r) => r.status === 'reported').length)
+      percentage: percentageOf(state.rows.filter((r) => r.status === 'reported').length)
     },
     {
       status: 'in_progress',
-      value: rows.value.filter((r) => r.status === 'in_progress').length,
+      value: state.rows.filter((r) => r.status === 'in_progress').length,
       icon: 'ri:tools-line',
-      percentage: percentageOf(rows.value.filter((r) => r.status === 'in_progress').length)
+      percentage: percentageOf(state.rows.filter((r) => r.status === 'in_progress').length)
     },
     {
       status: 'pending_confirm',
-      value: rows.value.filter((r) => r.status === 'pending_confirm').length,
+      value: state.rows.filter((r) => r.status === 'pending_confirm').length,
       icon: 'ri:shield-check-line',
-      percentage: percentageOf(rows.value.filter((r) => r.status === 'pending_confirm').length)
+      percentage: percentageOf(state.rows.filter((r) => r.status === 'pending_confirm').length)
     },
     {
       status: 'completed',
@@ -245,35 +273,69 @@
     completionRate: { title: '闭环率', width: 14 }
   }
   let loadVersion = 0
-  const load = async () => {
+  const load = async (): Promise<void> => {
     const version = ++loadVersion
-    loading.value = true
-    error.value = ''
-    rows.value = []
+    const operationCurrent = captureOperation()
+    const isCurrent = () => version === loadVersion && operationCurrent()
+    const range: AnalysisDateRange = [query.dateRange?.[0], query.dateRange?.[1]]
+    Object.assign(state, {
+      loading: true,
+      error: '',
+      rows: [],
+      activeRange: range,
+      acceptedRange: null
+    })
     try {
-      const result = await fetchPmisRepairTaskSnapshot({
-        dateFrom: query.dateRange[0],
-        dateTo: query.dateRange[1]
-      })
-      if (version === loadVersion) rows.value = result
+      const rows = await fetchPmisRepairTaskSnapshot(
+        { dateFrom: range[0], dateTo: range[1] },
+        { showErrorMessage: false }
+      )
+      if (isCurrent()) Object.assign(state, { rows, acceptedRange: range })
     } catch {
-      if (version === loadVersion) error.value = '维修分析加载失败，请重试。'
+      if (isCurrent()) state.error = '维修分析加载失败，请重试。'
     } finally {
-      if (version === loadVersion) loading.value = false
+      if (isCurrent()) state.loading = false
     }
   }
-  const reset = () => {
+  const reset = (): void => {
     Object.assign(query, initial())
     void load()
   }
   function percentageOf(value: number): number {
-    return rows.value.length ? Math.round((value / rows.value.length) * 100) : 0
+    return state.rows.length ? Math.round((value / state.rows.length) * 100) : 0
   }
   void userStore.ensureDictLoaded('pmisRepairStatus')
+  let workspaceActive = true
+  const invalidate = (): void => {
+    loadVersion++
+    Object.assign(state, { loading: false, error: '', rows: [], acceptedRange: null })
+  }
   watch(
-    () => tenantScopeStore.revision,
-    () => void load()
+    [
+      () => tenantScopeStore.revision,
+      () => tenantScopeStore.effectiveTenantId,
+      () => userStore.getUserInfo.userId,
+      () => route.fullPath
+    ],
+    () => {
+      invalidate()
+      const version = loadVersion
+      void nextTick(() => {
+        if (version === loadVersion && workspaceActive && route.path === workspacePath) void load()
+      })
+    },
+    { flush: 'sync' }
   )
+  onDeactivated(() => {
+    workspaceActive = false
+    invalidate()
+  })
+  onActivated(() => {
+    if (workspaceActive) return
+    workspaceActive = true
+    if (route.path === workspacePath) void load()
+  })
+  onScopeDispose(invalidate)
   void load()
 </script>
 <style scoped lang="scss">

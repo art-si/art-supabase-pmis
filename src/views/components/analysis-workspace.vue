@@ -7,7 +7,7 @@
       :icon="config.icon"
       :tags="[
         { label: dateCaption, type: 'primary' },
-        { label: '异常优先排序', type: overdue ? 'danger' : 'success' }
+        { label: '异常优先排序', type: !metricsReady ? 'info' : overdue ? 'danger' : 'success' }
       ]"
       :metrics="metrics"
     >
@@ -17,6 +17,7 @@
           :data="exportRows"
           :columns="exportColumns"
           :filename="`${kindLabel}分析`"
+          :disabled="!metricsReady"
           sheet-name="缺失统计"
           button-text="导出分析"
           type="warning"
@@ -56,7 +57,9 @@
             @retry="load"
           >
             <template #actions>
-              <ElTag type="primary" effect="plain" round>{{ departments.length }} 个范围</ElTag>
+              <ElTag type="primary" effect="plain" round
+                >{{ metricsReady ? departments.length : '—' }} 个范围</ElTag
+              >
             </template>
             <div class="pmis-analysis__ranking">
               <article v-for="(item, index) in departments" :key="item.id">
@@ -100,7 +103,9 @@
             @retry="load"
           >
             <template #actions>
-              <ElTag type="primary" effect="plain" round>{{ equipment.length }} 个对象</ElTag>
+              <ElTag type="primary" effect="plain" round
+                >{{ metricsReady ? equipment.length : '—' }} 个对象</ElTag
+              >
             </template>
             <div class="pmis-analysis__ranking">
               <article v-for="(item, index) in equipment" :key="item.id">
@@ -140,6 +145,8 @@
 <script setup lang="ts">
   import { replaceReactiveModel } from '@/utils/form/model'
   import dayjs from 'dayjs'
+  import { useRoute } from 'vue-router'
+  import { useTenantOperationGuard } from '@/hooks/core/useTenantOperationGuard'
   import ArtExcelExport from '@/components/core/forms/art-excel-export/index.vue'
   import ArtSearchBar, {
     type SearchFormItem
@@ -150,6 +157,7 @@
     type BusinessWorkspaceMetric
   } from '@/components/business/business-workspace-header/index.vue'
   import { useTenantScopeStore } from '@/store/modules/tenant-scope'
+  import { useUserStore } from '@/store/modules/user'
   import {
     analyzePmisTasks,
     fetchPmisTaskSnapshot,
@@ -163,8 +171,20 @@
 
   const props = defineProps<{ kind: PmisPlanKind }>()
   const tenantScopeStore = useTenantScopeStore()
+  const userStore = useUserStore()
+  const route = useRoute()
+  const workspacePath = route.path
+  const captureOperation = useTenantOperationGuard()
   interface AnalysisQuery {
-    dateRange: string[]
+    dateRange: string[] | null
+  }
+  type AnalysisDateRange = [string | undefined, string | undefined]
+  interface AnalysisState {
+    loading: boolean
+    error: string
+    rows: PmisTask[]
+    activeRange: AnalysisDateRange
+    acceptedRange: AnalysisDateRange | null
   }
   const initialQuery = (): AnalysisQuery => ({
     dateRange: [
@@ -173,16 +193,22 @@
     ]
   })
   const query = reactive<AnalysisQuery>(initialQuery())
-  const state = reactive<{ loading: boolean; error: string; rows: PmisTask[] }>({
+  const state = shallowReactive<AnalysisState>({
     loading: false,
     error: '',
-    rows: []
+    rows: [],
+    activeRange: [query.dateRange?.[0], query.dateRange?.[1]],
+    acceptedRange: null
   })
   const config = computed(() => pmisKindConfig(props.kind))
   const kindLabel = computed(() => config.value.label)
   const exportPermission = computed(() => pmisAnalysisPermissions[props.kind])
-  const dateCaption = computed(
-    () => `${query.dateRange[0] || '不限'} 至 ${query.dateRange[1] || '不限'}`
+  const dateCaption = computed(() => {
+    const range = state.acceptedRange ?? state.activeRange
+    return `${range[0] || '不限'} 至 ${range[1] || '不限'}`
+  })
+  const metricsReady = computed(
+    () => state.acceptedRange !== null && !state.loading && !state.error
   )
   const overview = computed(() => summarizePmisTasks(state.rows))
   const overdue = computed(() => overview.value.overdue)
@@ -203,27 +229,27 @@
   const metrics = computed<BusinessWorkspaceMetric[]>(() => [
     {
       label: '计划任务',
-      value: overview.value.total,
+      value: metricsReady.value ? overview.value.total : '—',
       description: dateCaption.value,
       icon: 'ri:file-list-3-line'
     },
     {
       label: '已完成',
-      value: overview.value.completed,
-      description: `完成率 ${overview.value.completionRate}%`,
+      value: metricsReady.value ? overview.value.completed : '—',
+      description: metricsReady.value ? `完成率 ${overview.value.completionRate}%` : '完成率 —',
       icon: 'ri:checkbox-circle-line',
       tone: 'success'
     },
     {
       label: '计划中',
-      value: overview.value.pending,
+      value: metricsReady.value ? overview.value.pending : '—',
       description: '尚未到期',
       icon: 'ri:time-line',
       tone: 'warning'
     },
     {
       label: '已延误',
-      value: overview.value.overdue,
+      value: metricsReady.value ? overview.value.overdue : '—',
       description: '优先处理',
       icon: 'ri:alarm-warning-line',
       tone: overview.value.overdue ? 'danger' : 'info'
@@ -245,19 +271,27 @@
   let loadVersion = 0
   const load = async (): Promise<void> => {
     const version = ++loadVersion
-    state.loading = true
-    state.error = ''
-    state.rows = []
+    const operationCurrent = captureOperation()
+    const isCurrent = () => version === loadVersion && operationCurrent()
+    const range: AnalysisDateRange = [query.dateRange?.[0], query.dateRange?.[1]]
+    Object.assign(state, {
+      loading: true,
+      error: '',
+      rows: [],
+      activeRange: range,
+      acceptedRange: null
+    })
     try {
-      const rows = await fetchPmisTaskSnapshot(props.kind, {
-        dateFrom: query.dateRange[0],
-        dateTo: query.dateRange[1]
-      })
-      if (version === loadVersion) state.rows = rows
+      const rows = await fetchPmisTaskSnapshot(
+        props.kind,
+        { dateFrom: range[0], dateTo: range[1] },
+        { showErrorMessage: false }
+      )
+      if (isCurrent()) Object.assign(state, { rows, acceptedRange: range })
     } catch {
-      if (version === loadVersion) state.error = `${kindLabel.value}分析加载失败，请重试。`
+      if (isCurrent()) state.error = `${kindLabel.value}分析加载失败，请重试。`
     } finally {
-      if (version === loadVersion) state.loading = false
+      if (isCurrent()) state.loading = false
     }
   }
   const reset = (): void => {
@@ -296,10 +330,38 @@
     overdue: { title: '已延误' },
     completionRate: { title: '完成率' }
   }
+  let workspaceActive = true
+  const invalidate = (): void => {
+    loadVersion++
+    Object.assign(state, { loading: false, error: '', rows: [], acceptedRange: null })
+  }
   watch(
-    () => tenantScopeStore.revision,
-    () => void load()
+    [
+      () => tenantScopeStore.revision,
+      () => tenantScopeStore.effectiveTenantId,
+      () => userStore.getUserInfo.userId,
+      () => route.fullPath,
+      () => props.kind
+    ],
+    () => {
+      invalidate()
+      const version = loadVersion
+      void nextTick(() => {
+        if (version === loadVersion && workspaceActive && route.path === workspacePath) void load()
+      })
+    },
+    { flush: 'sync' }
   )
+  onDeactivated(() => {
+    workspaceActive = false
+    invalidate()
+  })
+  onActivated(() => {
+    if (workspaceActive) return
+    workspaceActive = true
+    if (route.path === workspacePath) void load()
+  })
+  onScopeDispose(invalidate)
   void load()
 </script>
 
