@@ -22,40 +22,6 @@
             v-model:selected-data="selectedEquipment"
             :tenant-id="form.tenantId"
         /></template>
-        <template #reporterId
-          ><ArtEmployeeSelect
-            v-model="form.reporterId"
-            v-model:selected-data="selectedReporters"
-            :tenant-id="form.tenantId"
-        /></template>
-        <template #repairerId
-          ><ArtEmployeeSelect
-            v-model="form.repairerId"
-            v-model:selected-data="selectedRepairers"
-            :tenant-id="form.tenantId"
-        /></template>
-        <template #confirmerId
-          ><ArtEmployeeSelect
-            v-model="form.confirmerId"
-            v-model:selected-data="selectedConfirmers"
-            :tenant-id="form.tenantId"
-        /></template>
-        <template #faultPhotoFiles
-          ><ArtUploadImage
-            v-model="form.faultPhotoFiles"
-            :resource-tenant-id="form.tenantId"
-            multiple
-            :limit="6"
-            title="上传故障图片"
-        /></template>
-        <template #repairPhotoFiles
-          ><ArtUploadImage
-            v-model="form.repairPhotoFiles"
-            :resource-tenant-id="form.tenantId"
-            multiple
-            :limit="6"
-            title="上传维修图片"
-        /></template>
       </ArtForm>
     </div>
   </ArtDialog>
@@ -66,9 +32,7 @@
   import ArtDialog from '@/components/core/dialogs/art-dialog/index.vue'
   import type { ArtDialogExpose } from '@/components/core/dialogs/art-dialog/types'
   import ArtForm, { type FormItem } from '@/components/core/forms/art-form/index.vue'
-  import ArtUploadImage from '@/components/core/forms/art-upload-image/index.vue'
   import ArtSvgIcon from '@/components/core/base/art-svg-icon/index.vue'
-  import ArtEmployeeSelect from '@/components/business/art-employee-select/index.vue'
   import type { EmployeeIntegrationItem } from '@/api/integration/employees'
   import { useUserStore } from '@/store/modules/user'
   import {
@@ -144,9 +108,44 @@
       span: 24,
       props: { type: 'textarea', rows: 3, maxlength: 1000, showWordLimit: true, resize: 'none' }
     },
-    { label: '故障图片', key: 'faultPhotoFiles', type: 'slot', span: 24 },
-    { label: '报修人', key: 'reporterId', type: 'slot', span: 12 },
-    { label: '维修人员', key: 'repairerId', type: 'slot', span: 12 },
+    {
+      label: '故障图片',
+      key: 'faultPhotoFiles',
+      type: 'uploadImage',
+      span: 24,
+      props: {
+        resourceTenantId: form.value.tenantId,
+        multiple: true,
+        limit: 6,
+        title: '上传故障图片'
+      }
+    },
+    {
+      label: '报修人',
+      key: 'reporterId',
+      type: 'employeeSelect',
+      span: 12,
+      props: {
+        selectedData: selectedReporters.value,
+        'onUpdate:selectedData': (rows: EmployeeIntegrationItem[]) => {
+          selectedReporters.value = rows
+        },
+        tenantId: form.value.tenantId
+      }
+    },
+    {
+      label: '维修人员',
+      key: 'repairerId',
+      type: 'employeeSelect',
+      span: 12,
+      props: {
+        selectedData: selectedRepairers.value,
+        'onUpdate:selectedData': (rows: EmployeeIntegrationItem[]) => {
+          selectedRepairers.value = rows
+        },
+        tenantId: form.value.tenantId
+      }
+    },
     { label: '维修处置', key: 'repair', type: 'tab' },
     {
       label: '故障分析',
@@ -169,8 +168,31 @@
       span: 24,
       props: { type: 'textarea', rows: 3, resize: 'none' }
     },
-    { label: '维修图片', key: 'repairPhotoFiles', type: 'slot', span: 12 },
-    { label: '确认人', key: 'confirmerId', type: 'slot', span: 12 },
+    {
+      label: '维修图片',
+      key: 'repairPhotoFiles',
+      type: 'uploadImage',
+      span: 12,
+      props: {
+        resourceTenantId: form.value.tenantId,
+        multiple: true,
+        limit: 6,
+        title: '上传维修图片'
+      }
+    },
+    {
+      label: '确认人',
+      key: 'confirmerId',
+      type: 'employeeSelect',
+      span: 12,
+      props: {
+        selectedData: selectedConfirmers.value,
+        'onUpdate:selectedData': (rows: EmployeeIntegrationItem[]) => {
+          selectedConfirmers.value = rows
+        },
+        tenantId: form.value.tenantId
+      }
+    },
     {
       label: '工单状态',
       key: 'status',

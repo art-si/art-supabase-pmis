@@ -25,16 +25,6 @@
         :gutter="22"
         label-position="top"
       >
-        <template #executorEmployeeId>
-          <ArtEmployeeSelect
-            v-model="form.model.executorEmployeeId"
-            v-model:selected-data="executorSelection"
-            :tenant-id="task.tenantId"
-            title="选择实际执行人"
-            subtitle="执行人必须属于任务所在租户"
-          />
-        </template>
-
         <template #results>
           <div class="pmis-task-execution__items">
             <article
@@ -135,7 +125,6 @@
   import { normalizeNullableText } from '@/utils/form/normalize'
   import { ElMessage, type FormRules } from 'element-plus'
   import type { EmployeeIntegrationItem } from '@/api/integration/employees'
-  import ArtEmployeeSelect from '@/components/business/art-employee-select/index.vue'
   import ArtDialog from '@/components/core/dialogs/art-dialog/index.vue'
   import type { ArtDialogExpose } from '@/components/core/dialogs/art-dialog/types'
   import ArtForm, { type FormItem } from '@/components/core/forms/art-form/index.vue'
@@ -185,7 +174,21 @@
     }
   })
   const formItems = computed<FormItem[]>(() => [
-    { label: '实际执行人', key: 'executorEmployeeId', type: 'slot', span: 12 },
+    {
+      label: '实际执行人',
+      key: 'executorEmployeeId',
+      type: 'employeeSelect',
+      span: 12,
+      props: {
+        selectedData: executorSelection.value,
+        'onUpdate:selectedData': (rows: EmployeeIntegrationItem[]) => {
+          executorSelection.value = rows
+        },
+        tenantId: task.value?.tenantId,
+        title: '选择实际执行人',
+        subtitle: '执行人必须属于任务所在租户'
+      }
+    },
     {
       label: '执行总结',
       key: 'executionSummary',

@@ -17,34 +17,6 @@
         :gutter="20"
         label-position="top"
       >
-        <template #responsibleEmployeeIds
-          ><ArtEmployeeSelect
-            v-model:model-values="form.responsibleEmployeeIds"
-            v-model:selected-data="selectedResponsible"
-            multiple
-            :tenant-id="form.tenantId"
-        /></template>
-        <template #confirmerEmployeeIds
-          ><ArtEmployeeSelect
-            v-model:model-values="form.confirmerEmployeeIds"
-            v-model:selected-data="selectedConfirmers"
-            multiple
-            :tenant-id="form.tenantId"
-        /></template>
-        <template #repairerEmployeeIds
-          ><ArtEmployeeSelect
-            v-model:model-values="form.repairerEmployeeIds"
-            v-model:selected-data="selectedRepairers"
-            multiple
-            :tenant-id="form.tenantId"
-        /></template>
-        <template #notifyEmployeeIds
-          ><ArtEmployeeSelect
-            v-model:model-values="form.notifyEmployeeIds"
-            v-model:selected-data="selectedNotifiers"
-            multiple
-            :tenant-id="form.tenantId"
-        /></template>
       </ArtForm>
     </div>
   </ArtDialog>
@@ -58,7 +30,6 @@
   import type { ArtDialogExpose } from '@/components/core/dialogs/art-dialog/types'
   import ArtForm, { type FormItem } from '@/components/core/forms/art-form/index.vue'
   import ArtSvgIcon from '@/components/core/base/art-svg-icon/index.vue'
-  import ArtEmployeeSelect from '@/components/business/art-employee-select/index.vue'
   import type { EmployeeIntegrationItem } from '@/api/integration/employees'
   import { employeeReferenceSelection } from '@/utils/form/employee-reference'
   import { resolveEmployeeSelectedData } from './business-records'
@@ -164,10 +135,31 @@
           {
             label: '保养执行人',
             key: 'responsibleEmployeeIds',
-            type: 'slot',
-            span: 12
+            type: 'employeeSelect',
+            span: 12,
+            props: {
+              selectedData: selectedResponsible.value,
+              'onUpdate:selectedData': (rows: EmployeeIntegrationItem[]) => {
+                selectedResponsible.value = rows
+              },
+              multiple: true,
+              tenantId: form.value.tenantId
+            }
           } as FormItem,
-          { label: '保养确认人', key: 'confirmerEmployeeIds', type: 'slot', span: 12 } as FormItem,
+          {
+            label: '保养确认人',
+            key: 'confirmerEmployeeIds',
+            type: 'employeeSelect',
+            span: 12,
+            props: {
+              selectedData: selectedConfirmers.value,
+              'onUpdate:selectedData': (rows: EmployeeIntegrationItem[]) => {
+                selectedConfirmers.value = rows
+              },
+              multiple: true,
+              tenantId: form.value.tenantId
+            }
+          } as FormItem,
           {
             label: '相册照片必填',
             key: 'requireAlbumPhoto',
@@ -176,8 +168,34 @@
           } as FormItem
         ]
       : [
-          { label: '维修人员', key: 'repairerEmployeeIds', type: 'slot', span: 12 } as FormItem,
-          { label: '维修确认人', key: 'confirmerEmployeeIds', type: 'slot', span: 12 } as FormItem,
+          {
+            label: '维修人员',
+            key: 'repairerEmployeeIds',
+            type: 'employeeSelect',
+            span: 12,
+            props: {
+              selectedData: selectedRepairers.value,
+              'onUpdate:selectedData': (rows: EmployeeIntegrationItem[]) => {
+                selectedRepairers.value = rows
+              },
+              multiple: true,
+              tenantId: form.value.tenantId
+            }
+          } as FormItem,
+          {
+            label: '维修确认人',
+            key: 'confirmerEmployeeIds',
+            type: 'employeeSelect',
+            span: 12,
+            props: {
+              selectedData: selectedConfirmers.value,
+              'onUpdate:selectedData': (rows: EmployeeIntegrationItem[]) => {
+                selectedConfirmers.value = rows
+              },
+              multiple: true,
+              tenantId: form.value.tenantId
+            }
+          } as FormItem,
           {
             label: '普通完成时限（小时）',
             key: 'normalHours',
@@ -210,7 +228,20 @@
       type: 'number',
       props: { min: 1, max: 43200, precision: 0, class: '!w-full' }
     },
-    { label: '升级通知人员', key: 'notifyEmployeeIds', type: 'slot', span: 12 }
+    {
+      label: '升级通知人员',
+      key: 'notifyEmployeeIds',
+      type: 'employeeSelect',
+      span: 12,
+      props: {
+        selectedData: selectedNotifiers.value,
+        'onUpdate:selectedData': (rows: EmployeeIntegrationItem[]) => {
+          selectedNotifiers.value = rows
+        },
+        multiple: true,
+        tenantId: form.value.tenantId
+      }
+    }
   ])
   const rules: FormRules = {
     departmentId: [{ required: true, message: '请选择部门 / 产线', trigger: 'change' }]

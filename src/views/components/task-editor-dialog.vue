@@ -21,12 +21,6 @@
             v-model:selected-data="selectedEquipment"
             :tenant-id="form.tenantId"
         /></template>
-        <template #responsibleId
-          ><ArtEmployeeSelect
-            v-model="form.responsibleId"
-            v-model:selected-data="selectedResponsible"
-            :tenant-id="form.tenantId"
-        /></template>
       </ArtForm>
     </div>
   </ArtDialog>
@@ -40,7 +34,6 @@
   import type { ArtDialogExpose } from '@/components/core/dialogs/art-dialog/types'
   import ArtForm, { type FormItem } from '@/components/core/forms/art-form/index.vue'
   import ArtSvgIcon from '@/components/core/base/art-svg-icon/index.vue'
-  import ArtEmployeeSelect from '@/components/business/art-employee-select/index.vue'
   import type { EmployeeIntegrationItem } from '@/api/integration/employees'
   import {
     fetchPmisPlans,
@@ -112,7 +105,19 @@
       props: { valueFormat: 'YYYY-MM-DD', clearable: false }
     },
     { label: '执行设备', key: 'equipmentId', type: 'slot', span: 12 },
-    { label: '负责人', key: 'responsibleId', type: 'slot', span: 12 },
+    {
+      label: '负责人',
+      key: 'responsibleId',
+      type: 'employeeSelect',
+      span: 12,
+      props: {
+        selectedData: selectedResponsible.value,
+        'onUpdate:selectedData': (rows: EmployeeIntegrationItem[]) => {
+          selectedResponsible.value = rows
+        },
+        tenantId: form.value.tenantId
+      }
+    },
     {
       label: '任务说明',
       key: 'executionSummary',

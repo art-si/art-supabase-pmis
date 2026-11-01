@@ -26,24 +26,7 @@
             :tenant-id="form.tenantId"
           />
         </template>
-        <template #responsibleEmployeeIds>
-          <ArtEmployeeSelect
-            v-model:model-values="form.responsibleEmployeeIds"
-            v-model:selected-data="selectedEmployees"
-            multiple
-            :tenant-id="form.tenantId"
-          />
-        </template>
-        <template #sopUrl>
-          <ArtUploadFile
-            v-model="form.sopUrl"
-            :resource-tenant-id="form.tenantId"
-            :disabled="!form.tenantId"
-            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/*"
-            title="上传作业指导书"
-            tip="支持 PDF、Office 文档或图片，作为现场执行依据"
-          />
-        </template>
+
         <template #items>
           <PmisPlanItemEditor ref="itemEditorRef" v-model="form.items" :item-noun="itemNoun" />
         </template>
@@ -59,12 +42,10 @@
   import { ElMessage, type FormRules } from 'element-plus'
   import { cloneDeep } from 'lodash-es'
   import type { EmployeeIntegrationItem } from '@/api/integration/employees'
-  import ArtEmployeeSelect from '@/components/business/art-employee-select/index.vue'
   import ArtDialog from '@/components/core/dialogs/art-dialog/index.vue'
   import type { ArtDialogExpose } from '@/components/core/dialogs/art-dialog/types'
   import ArtForm, { type FormItem } from '@/components/core/forms/art-form/index.vue'
   import ArtSvgIcon from '@/components/core/base/art-svg-icon/index.vue'
-  import ArtUploadFile from '@/components/core/forms/art-upload-file/index.vue'
   import { useUserStore } from '@/store/modules/user'
   import {
     savePmisPlan,
@@ -235,8 +216,33 @@
     },
     { label: '执行对象', key: 'targetSection', type: 'tab' },
     { label: '适用设备', key: 'equipmentIds', type: 'slot', span: 12 },
-    { label: '负责人', key: 'responsibleEmployeeIds', type: 'slot', span: 12 },
-    { label: 'SOP / 作业指导书', key: 'sopUrl', type: 'slot', span: 24 },
+    {
+      label: '负责人',
+      key: 'responsibleEmployeeIds',
+      type: 'employeeSelect',
+      span: 12,
+      props: {
+        selectedData: selectedEmployees.value,
+        'onUpdate:selectedData': (rows: EmployeeIntegrationItem[]) => {
+          selectedEmployees.value = rows
+        },
+        multiple: true,
+        tenantId: form.value.tenantId
+      }
+    },
+    {
+      label: 'SOP / 作业指导书',
+      key: 'sopUrl',
+      type: 'uploadFile',
+      span: 24,
+      props: {
+        resourceTenantId: form.value.tenantId,
+        disabled: !form.value.tenantId,
+        accept: '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/*',
+        title: '上传作业指导书',
+        tip: '支持 PDF、Office 文档或图片，作为现场执行依据'
+      }
+    },
     { label: itemNoun.value, key: 'itemSection', type: 'tab' },
     { label: '', key: 'items', type: 'slot', span: 24, hideLabel: true }
   ])
