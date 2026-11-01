@@ -10,15 +10,12 @@
       </ArtEntitySummary>
       <ArtForm
         ref="formRef"
-        :model-value="form"
-        @update:model-value="replaceReactiveModel(form, $event)"
+        v-model="form"
         :items="items"
         :rules="rules"
         :span="12"
         :gutter="20"
         label-position="top"
-        :show-reset="false"
-        :show-submit="false"
       >
         <template #responsibleEmployeeIds
           ><ArtEmployeeSelect
@@ -54,7 +51,6 @@
 </template>
 
 <script setup lang="ts">
-  import { replaceReactiveModel } from '@/utils/form/model'
   import type { FormRules } from 'element-plus'
   import { notifyFriendlyError } from '@/hooks/core/useArtFeedback'
   import { useTenantScopeStore } from '@/store/modules/tenant-scope'
@@ -100,7 +96,7 @@
   const tenantScopeStore = useTenantScopeStore()
   const { getDictMap } = storeToRefs(userStore)
   const dialogRef = ref<ArtDialogExpose<SettingDialogOpenData>>()
-  const formRef = ref<{ validate: () => Promise<boolean>; clearValidate: () => void }>()
+  const formRef = ref<InstanceType<typeof ArtForm>>()
   const kind = ref<PmisSettingKind>('maintenance')
   const departmentOptions = shallowRef<Awaited<ReturnType<typeof fetchPmisDepartmentTree>>>([])
   let loadController: AbortController | undefined
@@ -133,7 +129,7 @@
     expediteHours: 4,
     emergencyHours: 2
   })
-  const form = reactive<FormModel>(initial())
+  const form = ref<FormModel>(initial())
   const title = computed(() => (kind.value === 'maintenance' ? '保养设置' : '维修人员设置'))
   const notifyOptions = computed(() => getDictMap.value.pmisNotificationMethod ?? [])
   const items = computed<FormItem[]>(() => [
@@ -152,7 +148,7 @@
         filterable: true,
         checkStrictly: true,
         defaultExpandAll: true,
-        disabled: Boolean(form.id),
+        disabled: Boolean(form.value.id),
         placeholder: '请选择部门 / 产线'
       }
     },
@@ -232,29 +228,29 @@
     await formRef.value?.validate()
     await savePmisDepartmentSetting(
       {
-        tenantId: form.tenantId || undefined,
+        tenantId: form.value.tenantId || undefined,
         settingKind: kind.value,
-        departmentId: form.departmentId,
-        requireAlbumPhoto: form.requireAlbumPhoto,
-        notificationMethods: form.notificationMethods,
+        departmentId: form.value.departmentId,
+        requireAlbumPhoto: form.value.requireAlbumPhoto,
+        notificationMethods: form.value.notificationMethods,
         urgencyRules: [
-          { urgency: 'normal', requiredHours: form.normalHours },
-          { urgency: 'urgent', requiredHours: form.urgentHours },
-          { urgency: 'expedite', requiredHours: form.expediteHours },
-          { urgency: 'emergency', requiredHours: form.emergencyHours }
+          { urgency: 'normal', requiredHours: form.value.normalHours },
+          { urgency: 'urgent', requiredHours: form.value.urgentHours },
+          { urgency: 'expedite', requiredHours: form.value.expediteHours },
+          { urgency: 'emergency', requiredHours: form.value.emergencyHours }
         ],
-        responsibleEmployeeIds: form.responsibleEmployeeIds,
-        confirmerEmployeeIds: form.confirmerEmployeeIds,
-        repairerEmployeeIds: form.repairerEmployeeIds,
+        responsibleEmployeeIds: form.value.responsibleEmployeeIds,
+        confirmerEmployeeIds: form.value.confirmerEmployeeIds,
+        repairerEmployeeIds: form.value.repairerEmployeeIds,
         escalationRules: [
           {
-            delayMinutes: form.escalationMinutes,
-            notificationMethods: form.notificationMethods,
-            notifyEmployeeIds: form.notifyEmployeeIds
+            delayMinutes: form.value.escalationMinutes,
+            notificationMethods: form.value.notificationMethods,
+            notifyEmployeeIds: form.value.notifyEmployeeIds
           }
         ]
       },
-      form.id
+      form.value.id
     )
     emit('success')
     return true
@@ -264,13 +260,13 @@
     const controller = new AbortController()
     loadController = controller
     kind.value = data.kind
-    Object.assign(form, initial(), { tenantId: data.tenantId || '' })
+    Object.assign(form.value, initial(), { tenantId: data.tenantId || '' })
     selectedResponsible.value = []
     selectedConfirmers.value = []
     selectedRepairers.value = []
     selectedNotifiers.value = []
     if (data.row) {
-      Object.assign(form, {
+      Object.assign(form.value, {
         id: data.row.id,
         tenantId: data.row.tenantId,
         departmentId: data.row.departmentId,
@@ -310,9 +306,13 @@
         try {
           const options = { signal: controller.signal, showErrorMessage: false }
           const [departments, resolvedNotifiers] = await Promise.all([
-            fetchPmisDepartmentTree(form.tenantId || undefined, options),
-            data.row && selectedNotifiers.value.length !== form.notifyEmployeeIds.length
-              ? resolveEmployeeSelectedData(data.row.tenantId, form.notifyEmployeeIds, options)
+            fetchPmisDepartmentTree(form.value.tenantId || undefined, options),
+            data.row && selectedNotifiers.value.length !== form.value.notifyEmployeeIds.length
+              ? resolveEmployeeSelectedData(
+                  data.row.tenantId,
+                  form.value.notifyEmployeeIds,
+                  options
+                )
               : Promise.resolve(selectedNotifiers.value),
             userStore.ensureDictLoaded('pmisNotificationMethod')
           ])

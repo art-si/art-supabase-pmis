@@ -1,0 +1,1 @@
+import{B as e,Q as t,U as n,q as r,z as i}from"./_baseForOwn-fgczCrex.js";function a(t,i){return n(e(t,i,r),t+``)}function o(e){return t(e)&&i(e)}export{a as n,o as t};

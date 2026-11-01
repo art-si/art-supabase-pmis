@@ -1,0 +1,1 @@
+import{br as e,qn as t,tr as n}from"./supabase-By517Fm1.js";import{t as r}from"./department-setting-workspace-E74al3I1.js";var i=n({__name:`index`,setup(n){return(n,i)=>(e(),t(r,{kind:`maintenance`}))}});export{i as default};

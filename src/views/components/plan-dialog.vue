@@ -1,5 +1,5 @@
 <template>
-  <ArtDialog ref="dialogRef" size="xl">
+  <ArtDialog ref="dialogRef" size="xl" content-height="min(620px, 70vh)">
     <div class="pmis-plan-dialog min-w-0">
       <ArtEntitySummary spaced>
         <template #icon><ArtSvgIcon :icon="config.icon" /></template>
@@ -10,15 +10,13 @@
 
       <ArtForm
         ref="formRef"
-        :model-value="form"
-        @update:model-value="replaceReactiveModel(form, $event)"
+        v-model:active-tab="activeTab"
+        v-model="form"
         :items="formItems"
         :rules="rules"
         :span="12"
         :gutter="22"
         label-position="top"
-        :show-reset="false"
-        :show-submit="false"
       >
         <template #equipmentIds>
           <PmisEquipmentSelect
@@ -55,11 +53,10 @@
 </template>
 
 <script setup lang="ts">
-  import { replaceReactiveModel } from '@/utils/form/model'
   import { validateArtFormForSubmit } from '@/utils/form/validate-art-form'
   import { notifyFriendlyError } from '@/hooks/core/useArtFeedback'
   import { normalizeNullableText } from '@/utils/form/normalize'
-  import type { FormRules } from 'element-plus'
+  import { ElMessage, type FormRules } from 'element-plus'
   import { cloneDeep } from 'lodash-es'
   import type { EmployeeIntegrationItem } from '@/api/integration/employees'
   import ArtEmployeeSelect from '@/components/business/art-employee-select/index.vue'
@@ -92,12 +89,10 @@
     id?: string
     sopUrl: string
   }
-  interface FormExpose {
-    validate: () => Promise<boolean>
-    clearValidate: () => void
-  }
   interface PlanItemEditorExpose {
-    validate: () => Promise<{ valid: boolean }>
+    validate: (options?: {
+      focus?: boolean
+    }) => Promise<{ valid: boolean; firstError?: { message: string } }>
     clearValidate: () => void
   }
 
@@ -105,7 +100,8 @@
   const userStore = useUserStore()
   const { getDictMap } = storeToRefs(userStore)
   const dialogRef = ref<ArtDialogExpose<PmisPlanDialogOpenData>>()
-  const formRef = ref<FormExpose>()
+  const formRef = ref<InstanceType<typeof ArtForm>>()
+  const activeTab = ref('basicSection')
   const itemEditorRef = ref<PlanItemEditorExpose>()
   const kind = ref<PmisPlanKind>('inspection')
   const tenantOptions = ref<Array<{ label: string; value: string }>>([])
@@ -144,10 +140,10 @@
     equipmentIds: [],
     responsibleEmployeeIds: []
   })
-  const form = reactive<PlanForm>(initialForm())
+  const form = ref<PlanForm>(initialForm())
   const dictOptions = (code: string) => getDictMap.value[code] ?? []
   const frequencyValueItem = computed<FormItem | null>(() => {
-    if (form.frequency === 'weekly')
+    if (form.value.frequency === 'weekly')
       return {
         label: '执行星期',
         key: 'frequencyValue',
@@ -157,7 +153,7 @@
           value: index + 1
         }))
       }
-    if (form.frequency === 'monthly' || form.frequency === 'quarterly')
+    if (form.value.frequency === 'monthly' || form.value.frequency === 'quarterly')
       return {
         label: '执行日期',
         key: 'frequencyValue',
@@ -165,7 +161,7 @@
         help: '按每月第几日执行，29—31 日请统一配置为 28 日。',
         props: { min: 1, max: 28, precision: 0, class: '!w-full' }
       }
-    if (form.frequency === 'yearly')
+    if (form.value.frequency === 'yearly')
       return {
         label: '执行月份',
         key: 'frequencyValue',
@@ -175,7 +171,7 @@
     return null
   })
   const formItems = computed<FormItem[]>(() => [
-    { label: '方案信息', key: 'basicSection', type: 'divider', span: 24 },
+    { label: '方案信息', key: 'basicSection', type: 'tab' },
     ...(tenantOptions.value.length > 1
       ? [
           {
@@ -183,7 +179,7 @@
             key: 'tenantId',
             type: 'select',
             options: tenantOptions.value,
-            props: { disabled: Boolean(form.id), filterable: true }
+            props: { disabled: Boolean(form.value.id), filterable: true }
           } as FormItem
         ]
       : []),
@@ -237,11 +233,11 @@
       span: 24,
       props: { type: 'textarea', rows: 3, maxlength: 1000, showWordLimit: true, resize: 'none' }
     },
-    { label: '执行对象', key: 'targetSection', type: 'divider', span: 24 },
+    { label: '执行对象', key: 'targetSection', type: 'tab' },
     { label: '适用设备', key: 'equipmentIds', type: 'slot', span: 12 },
     { label: '负责人', key: 'responsibleEmployeeIds', type: 'slot', span: 12 },
     { label: 'SOP / 作业指导书', key: 'sopUrl', type: 'slot', span: 24 },
-    { label: itemNoun.value, key: 'itemSection', type: 'divider', span: 24 },
+    { label: itemNoun.value, key: 'itemSection', type: 'tab' },
     { label: '', key: 'items', type: 'slot', span: 24, hideLabel: true }
   ])
   const rules: FormRules = {
@@ -270,15 +266,15 @@
       quarterly: 1,
       yearly: 1
     }
-    form.frequencyValue = defaults[form.frequency] ?? null
+    form.value.frequencyValue = defaults[form.value.frequency] ?? null
   }
-  watch(() => form.frequency, normalizeFrequencyValue)
+  watch(() => form.value.frequency, normalizeFrequencyValue)
   watch(
-    () => form.tenantId,
+    () => form.value.tenantId,
     (value, previousValue) => {
-      if (!previousValue || value === previousValue || form.id) return
-      form.equipmentIds = []
-      form.responsibleEmployeeIds = []
+      if (!previousValue || value === previousValue || form.value.id) return
+      form.value.equipmentIds = []
+      form.value.responsibleEmployeeIds = []
       selectedEquipment.value = []
       selectedEmployees.value = []
     }
@@ -287,8 +283,14 @@
   const handleSubmit = async (): Promise<boolean> => {
     try {
       if (!(await validateArtFormForSubmit(formRef.value))) return false
-      const itemValidation = await itemEditorRef.value?.validate()
-      if (itemValidation && !itemValidation.valid) return false
+      const itemValidation = await itemEditorRef.value?.validate({ focus: false })
+      if (itemValidation && !itemValidation.valid) {
+        activeTab.value = 'itemSection'
+        await nextTick()
+        await itemEditorRef.value?.validate()
+        if (itemValidation.firstError) ElMessage.warning(itemValidation.firstError.message)
+        return false
+      }
     } catch (error) {
       notifyFriendlyError(error, '计划校验未完成，请稍后重试', 'warning')
       return false
@@ -297,11 +299,11 @@
     try {
       await savePmisPlan(
         {
-          ...cloneDeep(form),
-          planName: form.planName.trim(),
-          remark: form.remark?.trim(),
-          sopFiles: form.sopUrl ? [form.sopUrl] : [],
-          items: form.items.map((item, index) => ({
+          ...cloneDeep(form.value),
+          planName: form.value.planName.trim(),
+          remark: form.value.remark?.trim(),
+          sopFiles: form.value.sopUrl ? [form.value.sopUrl] : [],
+          items: form.value.items.map((item, index) => ({
             ...item,
             itemName: item.itemName.trim(),
             requirement: item.requirement.trim(),
@@ -309,7 +311,7 @@
             sort: (index + 1) * 10
           }))
         },
-        form.id
+        form.value.id
       )
       emit('success')
       return true
@@ -319,13 +321,14 @@
     }
   }
   const handleOpen = async (data: PmisPlanDialogOpenData): Promise<void> => {
+    activeTab.value = 'basicSection'
     kind.value = data.kind
     tenantOptions.value = data.tenantOptions
-    Object.assign(form, initialForm(data.kind))
+    Object.assign(form.value, initialForm(data.kind))
     selectedEquipment.value = []
     selectedEmployees.value = []
     if (data.row) {
-      Object.assign(form, cloneDeep(data.row), {
+      Object.assign(form.value, cloneDeep(data.row), {
         id: data.copy ? undefined : data.row.id,
         planName: data.copy ? `${data.row.planName}（副本）` : data.row.planName,
         sopUrl: String(data.row.sopFiles[0] || ''),
@@ -344,7 +347,7 @@
         .filter((item): item is NonNullable<typeof item> => Boolean(item))
         .map((item) => ({ ...item, employmentStatus: 'active' }))
     } else {
-      form.tenantId =
+      form.value.tenantId =
         data.targetTenantId || (data.tenantOptions.length === 1 ? data.tenantOptions[0].value : '')
     }
     await dialogRef.value?.handleOpen(data, {

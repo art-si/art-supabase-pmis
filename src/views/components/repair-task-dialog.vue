@@ -1,5 +1,5 @@
 <template>
-  <ArtDialog ref="dialogRef" size="xl">
+  <ArtDialog ref="dialogRef" size="xl" content-height="min(620px, 70vh)">
     <div class="pmis-repair-dialog">
       <ArtEntitySummary spaced>
         <template #icon><ArtSvgIcon icon="ri:tools-line" /></template>
@@ -8,15 +8,13 @@
       </ArtEntitySummary>
       <ArtForm
         ref="formRef"
-        :model-value="form"
-        @update:model-value="replaceReactiveModel(form, $event)"
+        v-model:active-tab="activeTab"
+        v-model="form"
         :items="items"
         :rules="rules"
         :span="12"
         :gutter="20"
         label-position="top"
-        :show-reset="false"
-        :show-submit="false"
       >
         <template #equipmentId
           ><PmisEquipmentSelect
@@ -63,7 +61,6 @@
   </ArtDialog>
 </template>
 <script setup lang="ts">
-  import { replaceReactiveModel } from '@/utils/form/model'
   import { normalizeNullableText } from '@/utils/form/normalize'
   import type { FormRules } from 'element-plus'
   import ArtDialog from '@/components/core/dialogs/art-dialog/index.vue'
@@ -108,7 +105,8 @@
   const userStore = useUserStore()
   const { getDictMap } = storeToRefs(userStore)
   const dialogRef = ref<ArtDialogExpose<RepairDialogOpenData>>()
-  const formRef = ref<{ validate: () => Promise<boolean>; clearValidate: () => void }>()
+  const formRef = ref<InstanceType<typeof ArtForm>>()
+  const activeTab = ref('report')
   const initial = (): FormModel => ({
     id: undefined,
     tenantId: '',
@@ -125,13 +123,13 @@
     repairPhotoFiles: [],
     status: 'reported'
   })
-  const form = reactive<FormModel>(initial())
+  const form = ref<FormModel>(initial())
   const selectedEquipment = shallowRef<PmisEquipmentOption[]>([])
   const selectedReporters = shallowRef<EmployeeIntegrationItem[]>([])
   const selectedRepairers = shallowRef<EmployeeIntegrationItem[]>([])
   const selectedConfirmers = shallowRef<EmployeeIntegrationItem[]>([])
   const items = computed<FormItem[]>(() => [
-    { label: '报修信息', key: 'report', type: 'divider', span: 24 },
+    { label: '报修信息', key: 'report', type: 'tab' },
     { label: '设备', key: 'equipmentId', type: 'slot', span: 12 },
     {
       label: '紧急程度',
@@ -149,7 +147,7 @@
     { label: '故障图片', key: 'faultPhotoFiles', type: 'slot', span: 24 },
     { label: '报修人', key: 'reporterId', type: 'slot', span: 12 },
     { label: '维修人员', key: 'repairerId', type: 'slot', span: 12 },
-    { label: '维修处置', key: 'repair', type: 'divider', span: 24 },
+    { label: '维修处置', key: 'repair', type: 'tab' },
     {
       label: '故障分析',
       key: 'faultAnalysis',
@@ -187,36 +185,37 @@
   }
   const submit = async () => {
     await formRef.value?.validate()
-    if (!form.equipmentId || !form.reporterId) return false
+    if (!form.value.equipmentId || !form.value.reporterId) return false
     await savePmisRepairTask(
       {
-        tenantId: form.tenantId || undefined,
-        equipmentId: form.equipmentId,
-        urgency: form.urgency,
-        faultSymptom: form.faultSymptom.trim(),
-        faultPhotoFiles: form.faultPhotoFiles,
-        reporterEmployeeId: form.reporterId,
-        repairerEmployeeId: form.repairerId || null,
-        confirmerEmployeeId: form.confirmerId || null,
-        faultAnalysis: normalizeNullableText(form.faultAnalysis),
-        faultCause: normalizeNullableText(form.faultCause),
-        solution: normalizeNullableText(form.solution),
-        repairPhotoFiles: form.repairPhotoFiles,
-        status: form.status
+        tenantId: form.value.tenantId || undefined,
+        equipmentId: form.value.equipmentId,
+        urgency: form.value.urgency,
+        faultSymptom: form.value.faultSymptom.trim(),
+        faultPhotoFiles: form.value.faultPhotoFiles,
+        reporterEmployeeId: form.value.reporterId,
+        repairerEmployeeId: form.value.repairerId || null,
+        confirmerEmployeeId: form.value.confirmerId || null,
+        faultAnalysis: normalizeNullableText(form.value.faultAnalysis),
+        faultCause: normalizeNullableText(form.value.faultCause),
+        solution: normalizeNullableText(form.value.solution),
+        repairPhotoFiles: form.value.repairPhotoFiles,
+        status: form.value.status
       },
-      form.id
+      form.value.id
     )
     emit('success')
     return true
   }
   const handleOpen = async (data: RepairDialogOpenData) => {
-    Object.assign(form, initial(), { tenantId: data.tenantId || '' })
+    activeTab.value = 'report'
+    Object.assign(form.value, initial(), { tenantId: data.tenantId || '' })
     selectedEquipment.value = []
     selectedReporters.value = []
     selectedRepairers.value = []
     selectedConfirmers.value = []
     if (data.row) {
-      Object.assign(form, {
+      Object.assign(form.value, {
         id: data.copy ? undefined : data.row.id,
         tenantId: data.row.tenantId,
         equipmentId: data.row.equipment.id,

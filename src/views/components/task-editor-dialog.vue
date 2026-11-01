@@ -8,15 +8,12 @@
       </ArtEntitySummary>
       <ArtForm
         ref="formRef"
-        :model-value="form"
-        @update:model-value="replaceReactiveModel(form, $event)"
+        v-model="form"
         :items="items"
         :rules="rules"
         :span="12"
         :gutter="20"
         label-position="top"
-        :show-reset="false"
-        :show-submit="false"
       >
         <template #equipmentId
           ><PmisEquipmentSelect
@@ -35,7 +32,6 @@
   </ArtDialog>
 </template>
 <script setup lang="ts">
-  import { replaceReactiveModel } from '@/utils/form/model'
   import { normalizeNullableText } from '@/utils/form/normalize'
   import type { FormRules } from 'element-plus'
   import { notifyFriendlyError } from '@/hooks/core/useArtFeedback'
@@ -98,7 +94,7 @@
     responsibleId: undefined,
     executionSummary: ''
   })
-  const form = reactive<FormModel>(initial())
+  const form = ref<FormModel>(initial())
   const config = computed(() => pmisKindConfig(kind.value))
   const kindLabel = computed(() => config.value.label)
   const items = computed<FormItem[]>(() => [
@@ -131,13 +127,13 @@
     equipmentId: [{ required: true, message: '请选择一台执行设备', trigger: 'change' }]
   }
   watch(
-    () => form.planId,
+    () => form.value.planId,
     (id) => {
       const plan = plans.value.find((p) => p.id === id)
-      if (plan && form.tenantId !== plan.tenantId) {
-        form.tenantId = plan.tenantId
-        form.equipmentId = undefined
-        form.responsibleId = undefined
+      if (plan && form.value.tenantId !== plan.tenantId) {
+        form.value.tenantId = plan.tenantId
+        form.value.equipmentId = undefined
+        form.value.responsibleId = undefined
         selectedEquipment.value = []
         selectedResponsible.value = []
       }
@@ -145,18 +141,18 @@
   )
   const submit = async () => {
     await formRef.value?.validate()
-    if (!form.equipmentId) return false
+    if (!form.value.equipmentId) return false
     await savePmisTask(
       {
-        tenantId: form.tenantId,
-        planId: form.planId,
-        equipmentId: form.equipmentId,
-        plannedDate: form.plannedDate,
-        responsibleEmployeeId: form.responsibleId || null,
+        tenantId: form.value.tenantId,
+        planId: form.value.planId,
+        equipmentId: form.value.equipmentId,
+        plannedDate: form.value.plannedDate,
+        responsibleEmployeeId: form.value.responsibleId || null,
         taskSource: 'manual',
-        executionSummary: normalizeNullableText(form.executionSummary)
+        executionSummary: normalizeNullableText(form.value.executionSummary)
       },
-      form.id
+      form.value.id
     )
     emit('success')
     return true
@@ -167,11 +163,11 @@
     planLoadController = controller
     kind.value = data.kind
     plans.value = []
-    Object.assign(form, initial())
+    Object.assign(form.value, initial())
     selectedEquipment.value = []
     selectedResponsible.value = []
     if (data.row) {
-      Object.assign(form, {
+      Object.assign(form.value, {
         id: data.copy ? undefined : data.row.id,
         tenantId: data.row.tenantId,
         planId: data.row.plan.id,

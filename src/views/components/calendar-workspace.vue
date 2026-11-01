@@ -50,8 +50,7 @@
         </template>
         <main class="pmis-calendar__content">
           <ArtSearchBar
-            :model-value="query"
-            @update:model-value="replaceReactiveModel(query, $event)"
+            v-model="query"
             :items="searchItems"
             :span="mode === 'detail' ? 6 : 8"
             :label-width="64"
@@ -158,7 +157,6 @@
 </template>
 
 <script setup lang="tsx">
-  import { replaceReactiveModel } from '@/utils/form/model'
   import dayjs from 'dayjs'
   import { groupBy, isEqual, uniqBy } from 'lodash-es'
   import ArtTooltip from '@/components/core/feedback/art-tooltip/index.vue'
@@ -228,7 +226,7 @@
     equipmentId: '',
     shiftName: ''
   })
-  const query = reactive<CalendarQuery>(initialQuery())
+  const query = ref<CalendarQuery>(initialQuery())
   const tenantScopeStore = useTenantScopeStore()
   const userStore = useUserStore()
   const route = useRoute()
@@ -247,9 +245,9 @@
     departmentLabel: string
   }
   const captureScope = (): CalendarScope => ({
-    month: query.month,
-    equipmentId: query.equipmentId,
-    shiftName: query.shiftName,
+    month: query.value.month,
+    equipmentId: query.value.equipmentId,
+    shiftName: query.value.shiftName,
     departmentIds: [...departmentIds.value],
     departmentLabel: departmentLabel.value
   })
@@ -462,6 +460,15 @@
     ) : (
       <span class="pmis-calendar__empty-cell">—</span>
     )
+  const dayColumns: ColumnOption<MatrixRow>[] = Array.from({ length: 31 }, (_, index) => ({
+    prop: `day${String(index + 1).padStart(2, '0')}`,
+    label: String(index + 1).padStart(2, '0'),
+    width: 52,
+    align: 'center',
+    className: 'pmis-calendar__day-cell',
+    showOverflowTooltip: false,
+    formatter: (row) => cell(row.tasksByDate[days.value[index]])
+  }))
   const columns = computed<ColumnOption<MatrixRow>[]>(() => [
     { type: 'globalIndex', label: '序号', width: 66, fixed: 'left' },
     {
@@ -481,15 +488,7 @@
         </div>
       )
     },
-    ...days.value.map((date): ColumnOption<MatrixRow> => ({
-      prop: date,
-      label: dayjs(date).format('DD'),
-      width: 52,
-      align: 'center',
-      className: 'pmis-calendar__day-cell',
-      showOverflowTooltip: false,
-      formatter: (row) => cell(row.tasksByDate[date])
-    }))
+    ...dayColumns.slice(0, days.value.length)
   ])
   const matrixSubtitle = computed(
     () =>
@@ -537,7 +536,7 @@
     void load()
   }
   const reset = (): void => {
-    Object.assign(query, initialQuery())
+    Object.assign(query.value, initialQuery())
     void load()
   }
   const exportRows = computed(() =>
@@ -607,7 +606,7 @@
     () => {
       departmentIds.value = []
       departmentLabel.value = '全部产线'
-      query.equipmentId = ''
+      query.value.equipmentId = ''
       if (props.mode === 'detail') void loadEquipmentOptions()
       void load()
     },

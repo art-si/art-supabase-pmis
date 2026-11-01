@@ -1,5 +1,5 @@
 <template>
-  <ArtDialog ref="dialogRef" size="xl">
+  <ArtDialog ref="dialogRef" size="xl" content-height="min(620px, 70vh)">
     <div v-if="task" class="pmis-task-execution">
       <ArtEntitySummary
         :icon="taskIcon"
@@ -17,14 +17,13 @@
 
       <ArtForm
         ref="formRef"
+        v-model:active-tab="activeTab"
         v-model="form.model"
-        :items="form.items"
+        :items="formItems"
         :rules="rules"
         :span="12"
         :gutter="22"
         label-position="top"
-        :show-reset="false"
-        :show-submit="false"
       >
         <template #executorEmployeeId>
           <ArtEmployeeSelect
@@ -100,29 +99,31 @@
             </article>
           </div>
         </template>
+        <template #album>
+          <section class="pmis-task-execution__album">
+            <div
+              ><strong>作业前图片</strong><small>记录保养前设备状态</small
+              ><ArtUploadImage
+                v-model="form.model.beforePhotoFiles"
+                :resource-tenant-id="task.tenantId"
+                multiple
+                :limit="6"
+                :size="84"
+                title="上传作业前图片"
+            /></div>
+            <div
+              ><strong>作业后图片</strong><small>记录保养完成后的设备状态</small
+              ><ArtUploadImage
+                v-model="form.model.afterPhotoFiles"
+                :resource-tenant-id="task.tenantId"
+                multiple
+                :limit="6"
+                :size="84"
+                title="上传作业后图片"
+            /></div>
+          </section>
+        </template>
       </ArtForm>
-      <section v-if="task.plan.planKind === 'maintenance'" class="pmis-task-execution__album">
-        <div
-          ><strong>作业前图片</strong><small>记录保养前设备状态</small
-          ><ArtUploadImage
-            v-model="form.model.beforePhotoFiles"
-            :resource-tenant-id="task.tenantId"
-            multiple
-            :limit="6"
-            :size="84"
-            title="上传作业前图片"
-        /></div>
-        <div
-          ><strong>作业后图片</strong><small>记录保养完成后的设备状态</small
-          ><ArtUploadImage
-            v-model="form.model.afterPhotoFiles"
-            :resource-tenant-id="task.tenantId"
-            multiple
-            :limit="6"
-            :size="84"
-            title="上传作业后图片"
-        /></div>
-      </section>
     </div>
   </ArtDialog>
 </template>
@@ -164,49 +165,55 @@
     results: ExecutionResultForm[]
   }
 
-  interface FormExpose {
-    validate: () => Promise<boolean>
-    clearValidate: () => void
-  }
-
   const emit = defineEmits<{ success: [] }>()
   const dialogRef = ref<ArtDialogExpose<PmisTaskExecutionDialogOpenData>>()
-  const formRef = ref<FormExpose>()
+  const formRef = ref<InstanceType<typeof ArtForm>>()
+  const activeTab = ref('resultSection')
   const task = shallowRef<PmisTask>()
   const configuredResultStatusOptions = useDictionaryOptions('pmisTaskExecutionResult')
   const resultStatusOptions = computed(() =>
     configuredResultStatusOptions.filter((option) => ['ok', 'ng', 'exempt'].includes(option.value))
   )
   const executorSelection = shallowRef<EmployeeIntegrationItem[]>([])
-  const form = reactive<{ model: ExecutionFormModel; items: FormItem[] }>({
+  const form = reactive<{ model: ExecutionFormModel }>({
     model: {
       executorEmployeeId: '',
       executionSummary: '',
       beforePhotoFiles: [],
       afterPhotoFiles: [],
       results: []
-    },
-    items: [
-      { label: '执行信息', key: 'executionSection', type: 'divider', span: 24 },
-      { label: '实际执行人', key: 'executorEmployeeId', type: 'slot', span: 12 },
-      {
-        label: '执行总结',
-        key: 'executionSummary',
-        type: 'input',
-        span: 12,
-        props: {
-          type: 'textarea',
-          rows: 3,
-          maxlength: 1000,
-          showWordLimit: true,
-          resize: 'none',
-          placeholder: '概述本次检查情况、异常与后续建议'
-        }
-      },
-      { label: '逐项检查', key: 'resultSection', type: 'divider', span: 24 },
-      { label: '', key: 'results', type: 'slot', span: 24 }
-    ]
+    }
   })
+  const formItems = computed<FormItem[]>(() => [
+    { label: '实际执行人', key: 'executorEmployeeId', type: 'slot', span: 12 },
+    {
+      label: '执行总结',
+      key: 'executionSummary',
+      type: 'input',
+      span: 12,
+      props: {
+        type: 'textarea',
+        rows: 3,
+        maxlength: 1000,
+        showWordLimit: true,
+        resize: 'none',
+        placeholder: '概述本次检查情况、异常与后续建议'
+      }
+    },
+    {
+      label: '逐项检查',
+      key: 'resultSection',
+      type: task.value?.plan.planKind === 'maintenance' ? 'tab' : 'divider',
+      span: 24
+    },
+    { label: '', key: 'results', type: 'slot', span: 24 },
+    ...(task.value?.plan.planKind === 'maintenance'
+      ? [
+          { label: '作业相册', key: 'albumSection', type: 'tab' } as FormItem,
+          { label: '', key: 'album', type: 'slot', span: 24 } as FormItem
+        ]
+      : [])
+  ])
   const rules: FormRules<ExecutionFormModel> = {
     executorEmployeeId: [{ required: true, message: '请选择实际执行人', trigger: 'change' }]
   }
@@ -285,10 +292,12 @@
     try {
       if (!(await validateArtFormForSubmit(formRef.value))) return false
       if (form.model.results.length !== task.value.plan.items.length) {
+        await formRef.value?.focusField('results')
         ElMessage.warning(`任务${itemNoun.value}不完整，请刷新页面后重试`)
         return false
       }
       if (!form.model.results.every(isCompleteResult)) {
+        await formRef.value?.focusField('results')
         ElMessage.warning(`提交完成前请填写全部${itemNoun.value}结果`)
         return false
       }
@@ -296,6 +305,7 @@
         (result) => result.resultStatus === 'ng' && !result.remark.trim()
       )
       if (abnormalIndex >= 0) {
+        await formRef.value?.focusField('results')
         ElMessage.warning(`第 ${abnormalIndex + 1} 项为异常，请填写异常说明`)
         return false
       }
@@ -303,6 +313,7 @@
         (result, index) => requiresPhoto(index) && result.photoFiles.length === 0
       )
       if (missingPhotoIndex >= 0) {
+        await formRef.value?.focusField('results')
         ElMessage.warning(`第 ${missingPhotoIndex + 1} 项必须上传现场图片`)
         return false
       }
@@ -335,6 +346,7 @@
   }
 
   const handleOpen = async (data: PmisTaskExecutionDialogOpenData): Promise<void> => {
+    activeTab.value = 'resultSection'
     task.value = data.task
     initialize(data.task)
     await dialogRef.value?.handleOpen(data, {

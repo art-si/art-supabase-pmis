@@ -44,7 +44,7 @@
     </ElAlert>
 
     <ArtSectionCard
-      :show-scrollbar="false"
+      scroll-max-height="clamp(420px, calc(100vh - 356px), 760px)"
       class="pmis-dashboard__surface"
       title="当日点检状态"
       :subtitle="
@@ -57,7 +57,7 @@
       empty-description="启用点检方案并绑定设备后，当日任务会自动出现在看板。"
       @retry="load"
     >
-      <template #actions>
+      <template #toolbar>
         <div class="pmis-dashboard__filters">
           <ElTreeSelect
             v-model="filters.departmentId"
@@ -104,35 +104,29 @@
           </ElSelect>
         </div>
       </template>
-      <ElScrollbar class="pmis-dashboard__scroll">
-        <div class="pmis-dashboard__grid">
-          <article v-for="task in filteredTasks" :key="task.id" :class="`is-${task.displayStatus}`">
-            <div class="pmis-dashboard__tile-head">
-              <span><ArtSvgIcon icon="ri:tools-line" /></span>
-              <ArtDictDisplay
-                dict-code="pmisTaskStatus"
-                :value="task.displayStatus"
-                display="tag"
-              />
-            </div>
-            <strong>{{ task.equipment.equipmentName }}</strong>
-            <small
-              >{{ task.equipment.equipmentCode }} ·
-              {{ task.equipment.department?.departmentName || '待分配产线' }}</small
-            >
-            <div class="pmis-dashboard__tile-meta">
-              <span>{{ task.plan.planName }}</span
-              ><span>{{ task.shiftName || '默认班次' }}</span>
-            </div>
-            <button
-              v-auth="'PmisInspectionDashboard:ViewDetail'"
-              type="button"
-              @click="showDetail(task)"
-              >查看点检明细<ArtSvgIcon icon="ri:arrow-right-line"
-            /></button>
-          </article>
-        </div>
-      </ElScrollbar>
+      <div class="pmis-dashboard__grid">
+        <article v-for="task in filteredTasks" :key="task.id" :class="`is-${task.displayStatus}`">
+          <div class="pmis-dashboard__tile-head">
+            <span><ArtSvgIcon icon="ri:tools-line" /></span>
+            <ArtDictDisplay dict-code="pmisTaskStatus" :value="task.displayStatus" display="tag" />
+          </div>
+          <strong>{{ task.equipment.equipmentName }}</strong>
+          <small
+            >{{ task.equipment.equipmentCode }} ·
+            {{ task.equipment.department?.departmentName || '待分配产线' }}</small
+          >
+          <div class="pmis-dashboard__tile-meta">
+            <span>{{ task.plan.planName }}</span
+            ><span>{{ task.shiftName || '默认班次' }}</span>
+          </div>
+          <button
+            v-auth="'PmisInspectionDashboard:ViewDetail'"
+            type="button"
+            @click="showDetail(task)"
+            >查看点检明细<ArtSvgIcon icon="ri:arrow-right-line"
+          /></button>
+        </article>
+      </div>
     </ArtSectionCard>
 
     <ArtDrawer ref="drawerRef" title="设备点检详情" size="lg">
@@ -152,22 +146,13 @@
             <p>调整数据刷新频率与设备卡片密度，仅影响当前登录会话。</p>
           </div>
         </div>
-        <ArtForm
-          :model-value="settings"
-          @update:model-value="replaceReactiveModel(settings, $event)"
-          :items="settingsItems"
-          :span="12"
-          :show-reset="false"
-          :show-submit="false"
-          label-position="top"
-        />
+        <ArtForm v-model="settings" :items="settingsItems" :span="12" label-position="top" />
       </div>
     </ArtDialog>
   </div>
 </template>
 
 <script setup lang="ts">
-  import { replaceReactiveModel } from '@/utils/form/model'
   import dayjs from 'dayjs'
   import { useIntervalFn } from '@vueuse/core'
   import TreeUtils from '@/utils/tree'
@@ -217,8 +202,8 @@
     equipmentId: string
     status: PmisTaskStatus | ''
   }>({ departmentId: '', equipmentId: '', status: '' })
-  const settings = reactive({ refreshMinutes: 5, columns: 4 })
-  const refreshMinutes = computed(() => settings.refreshMinutes)
+  const settings = ref({ refreshMinutes: 5, columns: 4 })
+  const refreshMinutes = computed(() => settings.value.refreshMinutes)
   const statusOptions = computed(() => getDictMap.value.pmisTaskStatus ?? [])
   const departmentTreeUtils = new TreeUtils({
     idKey: 'id',
@@ -488,10 +473,6 @@
       }
     }
 
-    &__scroll {
-      height: clamp(420px, calc(100vh - 356px), 760px);
-    }
-
     &__grid {
       display: grid;
       grid-template-columns: repeat(var(--pmis-dashboard-columns), minmax(210px, 1fr));
@@ -591,6 +572,12 @@
   @media (width <= 820px) {
     .pmis-dashboard__grid {
       grid-template-columns: repeat(2, minmax(210px, 1fr));
+    }
+  }
+
+  @media (width <= 540px) {
+    .pmis-dashboard__grid {
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 </style>

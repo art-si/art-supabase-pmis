@@ -24,6 +24,7 @@
         primary-max="400px"
         :breakpoint="900"
         stacked-primary-size="300px"
+        stacked-secondary-min-size="680px"
       >
         <template #primary>
           <PmisDepartmentNavigator @change="changeDepartments" />
@@ -93,10 +94,14 @@
     </ArtDrawer>
     <PmisTaskExecutionDialog ref="executionRef" @success="handleExecutionSuccess" />
     <PmisTaskEditorDialog ref="editorRef" @success="handleExecutionSuccess" />
+    <MasterDataDeleteGuard ref="deleteGuardRef" />
   </div>
 </template>
 
 <script setup lang="tsx">
+  import MasterDataDeleteGuard from '@/components/business/master-data-delete-guard/index.vue'
+  import { useRecordDeleteGuard } from '@/hooks/core/useRecordDeleteGuard'
+
   import { createDateTimeFormatter } from '@/utils/ui/format'
 
   import dayjs from 'dayjs'
@@ -143,6 +148,7 @@
   import { resolvePmisTaskPermissions } from './business-permissions'
   import PmisDetailDrawerSections from './detail-drawer-sections.vue'
   import PmisTaskEditorDialog, { type TaskEditorOpenData } from './task-editor-dialog.vue'
+  const { deleteGuardRef, deleteRecords } = useRecordDeleteGuard('pmis_task', '保养任务')
 
   const formatTableDateTime = createDateTimeFormatter({
     format: 'YYYY-MM-DD HH:mm',
@@ -283,16 +289,25 @@
   const openEditor = (row?: PmisTask, copy = false): void =>
     void editorRef.value?.handleOpen({ kind: props.kind, row, copy })
   const removeRows = async (rows: PmisTask[]): Promise<void> => {
-    await confirmAction(
-      `确定删除选中的 ${rows.length} 个临时任务吗？仅未执行的手工任务可删除。`,
-      `删除${kindLabel.value}任务`,
-      { type: 'warning' }
-    )
-    await deletePmisTasks(
-      rows.map((row) => row.id),
-      props.kind
-    )
-    handleExecutionSuccess()
+    const permission = permissions.value.delete
+    if (!permission) return
+    await deleteRecords({
+      resources: rows.map((row) => ({
+        id: String(row.id ?? ''),
+        label: String(row.taskNo ?? '保养任务')
+      })),
+      permission,
+      confirmMessage: `确定删除选中的 ${rows.length} 个临时任务吗？仅未执行的手工任务可删除。`,
+      remove: async () => {
+        await deletePmisTasks(
+          rows.map((row) => row.id),
+          props.kind
+        )
+      },
+      onDeleted: async () => {
+        handleExecutionSuccess()
+      }
+    })
   }
   const confirmTask = async (row: PmisTask): Promise<void> => {
     await confirmAction(`确认 ${row.taskNo} 的保养结果已复核无误吗？`, '确认保养结果', {
@@ -445,6 +460,7 @@
       ? [
           {
             type: 'delete',
+            confirm: false,
             permission: permissions.value.delete,
             selectionRequired: true,
             content: '确定删除选中的临时任务吗？',

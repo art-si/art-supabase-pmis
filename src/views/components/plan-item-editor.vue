@@ -55,7 +55,8 @@
       props.modelValue.filter((_, itemIndex) => itemIndex !== index)
     )
 
-  const validate = (): Promise<ArtTableValidationResult> => tableRef.value!.validate()
+  const validate = (options?: { focus?: boolean }): Promise<ArtTableValidationResult> =>
+    tableRef.value!.validate(options)
   const clearValidate = (): void => tableRef.value?.clearValidate()
   const moveItem = (index: number, offset: number): void => {
     const target = index + offset

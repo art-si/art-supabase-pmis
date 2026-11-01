@@ -64,9 +64,13 @@
         ></PmisDetailDrawerSections
       ></ArtDrawer
     >
+    <MasterDataDeleteGuard ref="deleteGuardRef" />
   </div>
 </template>
 <script setup lang="tsx">
+  import MasterDataDeleteGuard from '@/components/business/master-data-delete-guard/index.vue'
+  import { useRecordDeleteGuard } from '@/hooks/core/useRecordDeleteGuard'
+
   import { createDateTimeFormatter } from '@/utils/ui/format'
 
   import dayjs from 'dayjs'
@@ -89,7 +93,6 @@
   } from '@/components/core/tables/art-table-query/index.vue'
   import type { ColumnOption } from '@/types'
   import type { ApiRequestOptions } from '@/types/api/request'
-  import { useArtFeedback } from '@/hooks/core/useArtFeedback'
   import { useDictionaryOptions } from '@/hooks/core/useDictionaryOptions'
   import { useTenantScopeStore } from '@/store/modules/tenant-scope'
   import { deletePmisRepairTasks, fetchPmisRepairTasks, type PmisRepairTask } from '@pmis/api'
@@ -97,6 +100,7 @@
   import PmisDepartmentNavigator from './department-navigator.vue'
   import PmisRepairTaskDialog, { type RepairDialogOpenData } from './repair-task-dialog.vue'
   import { pmisRepairTaskPermissions } from './business-permissions'
+  const { deleteGuardRef, deleteRecords } = useRecordDeleteGuard('pmis_repair_task', '维修工单')
 
   const formatTableDateTime = createDateTimeFormatter({
     format: 'YYYY-MM-DD HH:mm',
@@ -125,7 +129,7 @@
   )
   const departments = ref<string[]>([])
   const search = ref<Record<string, unknown>>({ keyword: '', dateRange: [], status: '' })
-  const { confirmAction } = useArtFeedback()
+
   const repairStatusOptions = useDictionaryOptions('pmisRepairStatus')
   const scope = useTenantScopeStore()
   const { effectiveTenantId } = storeToRefs(scope)
@@ -223,11 +227,17 @@
     })
   }
   const remove = async (row: PmisRepairTask) => {
-    await confirmAction(`确定删除维修工单 ${row.workOrderNo} 吗？`, '删除维修工单', {
-      type: 'warning'
+    await deleteRecords({
+      resources: [{ id: String(row.id ?? ''), label: String(row.workOrderNo ?? '维修工单') }],
+      permission: pmisRepairTaskPermissions.delete,
+      confirmMessage: `确定删除维修工单 ${row.workOrderNo} 吗？`,
+      remove: async () => {
+        await deletePmisRepairTasks([row.id])
+      },
+      onDeleted: async () => {
+        refresh()
+      }
     })
-    await deletePmisRepairTasks([row.id])
-    refresh()
   }
   const columnsFactory = (): ColumnOption<PmisRepairTask>[] => [
     { type: 'globalIndex', label: '序号', width: 70, fixed: 'left' },

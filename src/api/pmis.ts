@@ -229,9 +229,10 @@ export async function deletePmisPlans(ids: string[], kind: PmisPlanKind) {
   await responseHandle<number>(
     () => supabase.rpc('pmis_delete_plans_secure', { p_ids: ids, p_kind: kind }),
     {
+      showReferenceFeedback: false,
       breakReturn: true,
       showMessage: true,
-      showErrorMessage: true,
+      showErrorMessage: false,
       message: '方案已删除',
       errorMessage: '方案删除失败，请先解除适用设备或保留已有执行记录'
     }
@@ -306,9 +307,10 @@ export async function deletePmisTasks(ids: string[], kind: PmisPlanKind): Promis
   await responseHandle<number>(
     () => supabase.rpc('pmis_delete_tasks_secure', { p_ids: ids, p_kind: kind }),
     {
+      showReferenceFeedback: false,
       breakReturn: true,
       showMessage: true,
-      showErrorMessage: true,
+      showErrorMessage: false,
       message: '任务已删除',
       errorMessage: '任务删除失败，仅未执行任务可删除'
     }
@@ -389,9 +391,10 @@ export async function deletePmisDepartmentSettings(
   await responseHandle<number>(
     () => supabase.rpc('pmis_delete_department_settings_secure', { p_ids: ids, p_kind: kind }),
     {
+      showReferenceFeedback: false,
       breakReturn: true,
       showMessage: true,
-      showErrorMessage: true,
+      showErrorMessage: false,
       message: '部门设置已删除',
       errorMessage: '部门设置删除失败'
     }
@@ -464,9 +467,10 @@ export async function deletePmisRepairTasks(ids: string[]): Promise<void> {
   await responseHandle<number>(
     () => supabase.rpc('pmis_delete_repair_tasks_secure', { p_ids: ids }),
     {
+      showReferenceFeedback: false,
       breakReturn: true,
       showMessage: true,
-      showErrorMessage: true,
+      showErrorMessage: false,
       message: '维修工单已删除',
       errorMessage: '维修工单删除失败'
     }

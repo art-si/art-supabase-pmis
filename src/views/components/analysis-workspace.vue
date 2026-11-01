@@ -32,8 +32,7 @@
     <ElScrollbar class="pmis-analysis__scroll">
       <div class="pmis-analysis__body">
         <ArtSearchBar
-          :model-value="query"
-          @update:model-value="replaceReactiveModel(query, $event)"
+          v-model="query"
           :items="searchItems"
           :span="8"
           :label-width="72"
@@ -143,7 +142,6 @@
 </template>
 
 <script setup lang="ts">
-  import { replaceReactiveModel } from '@/utils/form/model'
   import dayjs from 'dayjs'
   import { useRoute } from 'vue-router'
   import { useTenantOperationGuard } from '@/hooks/core/useTenantOperationGuard'
@@ -192,12 +190,12 @@
       dayjs().endOf('month').format('YYYY-MM-DD')
     ]
   })
-  const query = reactive<AnalysisQuery>(initialQuery())
+  const query = ref<AnalysisQuery>(initialQuery())
   const state = shallowReactive<AnalysisState>({
     loading: false,
     error: '',
     rows: [],
-    activeRange: [query.dateRange?.[0], query.dateRange?.[1]],
+    activeRange: [query.value.dateRange?.[0], query.value.dateRange?.[1]],
     acceptedRange: null
   })
   const config = computed(() => pmisKindConfig(props.kind))
@@ -273,7 +271,7 @@
     const version = ++loadVersion
     const operationCurrent = captureOperation()
     const isCurrent = () => version === loadVersion && operationCurrent()
-    const range: AnalysisDateRange = [query.dateRange?.[0], query.dateRange?.[1]]
+    const range: AnalysisDateRange = [query.value.dateRange?.[0], query.value.dateRange?.[1]]
     Object.assign(state, {
       loading: true,
       error: '',
@@ -295,7 +293,7 @@
     }
   }
   const reset = (): void => {
-    Object.assign(query, initialQuery())
+    Object.assign(query.value, initialQuery())
     void load()
   }
   const exportRows = computed(() =>

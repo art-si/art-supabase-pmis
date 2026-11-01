@@ -63,10 +63,14 @@
         </ArtSectionCard>
       </PmisDetailDrawerSections>
     </ArtDrawer>
+    <MasterDataDeleteGuard ref="deleteGuardRef" />
   </div>
 </template>
 
 <script setup lang="tsx">
+  import MasterDataDeleteGuard from '@/components/business/master-data-delete-guard/index.vue'
+  import { useRecordDeleteGuard } from '@/hooks/core/useRecordDeleteGuard'
+
   import { createDateTimeFormatter } from '@/utils/ui/format'
   import { compact, uniq } from 'lodash-es'
 
@@ -93,7 +97,6 @@
   import type { ApiRequestOptions } from '@/types/api/request'
   import type { ColumnOption } from '@/types'
   import { useAuth } from '@/hooks/core/useAuth'
-  import { useArtFeedback } from '@/hooks/core/useArtFeedback'
   import { useTenantScopeStore } from '@/store/modules/tenant-scope'
   import { useUserStore } from '@/store/modules/user'
   import {
@@ -108,6 +111,7 @@
   import { pmisKindConfig } from './business-config'
   import { pmisPlanPermissions } from './business-permissions'
   import PmisDetailDrawerSections from './detail-drawer-sections.vue'
+  const { deleteGuardRef, deleteRecords } = useRecordDeleteGuard('pmis_plan', '保养方案')
 
   const formatTableDateTime = createDateTimeFormatter({
     format: 'YYYY-MM-DD HH:mm',
@@ -119,7 +123,7 @@
   interface DialogExpose {
     handleOpen: (data: PmisPlanDialogOpenData) => Promise<void>
   }
-  const { confirmAction } = useArtFeedback()
+
   const { hasAuth } = useAuth()
   const tenantScopeStore = useTenantScopeStore()
   const { effectiveTenantId, tenantOptions } = storeToRefs(tenantScopeStore)
@@ -241,16 +245,23 @@
     })
   }
   const removeRows = async (selected: PmisPlan[]): Promise<void> => {
-    await confirmAction(
-      `确定删除选中的 ${selected.length} 个${kindLabel.value}方案吗？仍绑定设备的方案不能删除。`,
-      `删除${kindLabel.value}方案`,
-      { type: 'warning' }
-    )
-    await deletePmisPlans(
-      selected.map((row) => row.id),
-      props.kind
-    )
-    refresh()
+    await deleteRecords({
+      resources: selected.map((row) => ({
+        id: String(row.id ?? ''),
+        label: String(row.planName ?? '保养方案')
+      })),
+      permission: permissions.value.delete,
+      confirmMessage: `确定删除选中的 ${selected.length} 个${kindLabel.value}方案吗？仍绑定设备的方案不能删除。`,
+      remove: async () => {
+        await deletePmisPlans(
+          selected.map((row) => row.id),
+          props.kind
+        )
+      },
+      onDeleted: async () => {
+        refresh()
+      }
+    })
   }
   const frequencyMap: Record<string, PmisPlanFrequency> = {
     daily: 'daily',
@@ -453,6 +464,7 @@
     },
     {
       type: 'delete',
+      confirm: false,
       permission: permissions.value.delete,
       selectionRequired: true,
       content: ({ selectedCount }: ArtTableQueryHeaderActionContext) =>

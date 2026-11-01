@@ -32,8 +32,7 @@
     <ElScrollbar class="pmis-repair-analysis__scroll"
       ><div class="pmis-repair-analysis__body"
         ><ArtSearchBar
-          :model-value="query"
-          @update:model-value="replaceReactiveModel(query, $event)"
+          v-model="query"
           :items="searchItems"
           :span="8"
           :label-width="72"
@@ -115,7 +114,6 @@
   </div>
 </template>
 <script setup lang="ts">
-  import { replaceReactiveModel } from '@/utils/form/model'
   import dayjs from 'dayjs'
   import { groupBy } from 'lodash-es'
   import { useRoute } from 'vue-router'
@@ -151,7 +149,7 @@
       dayjs().endOf('month').format('YYYY-MM-DD')
     ]
   })
-  const query = reactive<RepairAnalysisQuery>(initial())
+  const query = ref<RepairAnalysisQuery>(initial())
   const userStore = useUserStore()
   const tenantScopeStore = useTenantScopeStore()
   const route = useRoute()
@@ -161,7 +159,7 @@
     loading: false,
     error: '',
     rows: [],
-    activeRange: [query.dateRange?.[0], query.dateRange?.[1]],
+    activeRange: [query.value.dateRange?.[0], query.value.dateRange?.[1]],
     acceptedRange: null
   })
   const dateCaption = computed(() => {
@@ -277,7 +275,7 @@
     const version = ++loadVersion
     const operationCurrent = captureOperation()
     const isCurrent = () => version === loadVersion && operationCurrent()
-    const range: AnalysisDateRange = [query.dateRange?.[0], query.dateRange?.[1]]
+    const range: AnalysisDateRange = [query.value.dateRange?.[0], query.value.dateRange?.[1]]
     Object.assign(state, {
       loading: true,
       error: '',
@@ -298,7 +296,7 @@
     }
   }
   const reset = (): void => {
-    Object.assign(query, initial())
+    Object.assign(query.value, initial())
     void load()
   }
   function percentageOf(value: number): number {

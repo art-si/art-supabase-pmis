@@ -44,7 +44,7 @@
     </section>
     <PmisDepartmentSettingDialog ref="dialogRef" @success="refresh" />
     <ArtDrawer ref="drawerRef" :title="`${title}详情`" size="lg">
-      <PmisDetailDrawerSections v-if="detailRow">
+      <PmisDetailDrawerSections v-if="detailRow" :tabbed="false">
         <ArtSectionCard title="部门配置" subtitle="默认人员、通知方式与现场要求">
           <ArtDescriptions :columns="2" :data="detailRow" :items="detailDescriptions" />
         </ArtSectionCard>
@@ -76,10 +76,14 @@
         </ArtSectionCard>
       </PmisDetailDrawerSections>
     </ArtDrawer>
+    <MasterDataDeleteGuard ref="deleteGuardRef" />
   </div>
 </template>
 
 <script setup lang="tsx">
+  import MasterDataDeleteGuard from '@/components/business/master-data-delete-guard/index.vue'
+  import { useRecordDeleteGuard } from '@/hooks/core/useRecordDeleteGuard'
+
   import { compact, uniq } from 'lodash-es'
   import type { ApiRequestOptions } from '@/types/api/request'
   import ArtDescriptions from '@/components/core/base/art-descriptions/index.vue'
@@ -98,7 +102,6 @@
     ArtTableQueryHeaderAction
   } from '@/components/core/tables/art-table-query/index.vue'
   import type { ColumnOption } from '@/types'
-  import { useArtFeedback } from '@/hooks/core/useArtFeedback'
   import { useTenantScopeStore } from '@/store/modules/tenant-scope'
   import {
     deletePmisDepartmentSettings,
@@ -112,6 +115,10 @@
   } from './department-setting-dialog.vue'
   import { pmisSettingPermissions } from './business-permissions'
   import PmisDetailDrawerSections from './detail-drawer-sections.vue'
+  const { deleteGuardRef, deleteRecords } = useRecordDeleteGuard(
+    'pmis_department_setting',
+    '部门设置'
+  )
 
   const props = defineProps<{ kind: PmisSettingKind }>()
   const tableRef = ref<ArtTableQueryExpose>()
@@ -131,7 +138,7 @@
   )
   const tenantScope = useTenantScopeStore()
   const { effectiveTenantId } = storeToRefs(tenantScope)
-  const { confirmAction } = useArtFeedback()
+
   const title = computed(() => (props.kind === 'maintenance' ? '保养设置' : '设置维修人员'))
   const description = computed(() =>
     props.kind === 'maintenance'
@@ -219,13 +226,22 @@
     })
   }
   const remove = async (row: PmisDepartmentSetting) => {
-    await confirmAction(
-      `确定删除 ${row.department?.departmentName || '该部门'} 的${title.value}吗？`,
-      `删除${title.value}`,
-      { type: 'warning' }
-    )
-    await deletePmisDepartmentSettings([row.id], props.kind)
-    refresh()
+    await deleteRecords({
+      resources: [
+        {
+          id: String(row.id ?? ''),
+          label: String(row.department?.departmentName ?? '部门设置')
+        }
+      ],
+      permission: permissions.value.delete,
+      confirmMessage: `确定删除 ${row.department?.departmentName || '该部门'} 的${title.value}吗？`,
+      remove: async () => {
+        await deletePmisDepartmentSettings([row.id], props.kind)
+      },
+      onDeleted: async () => {
+        refresh()
+      }
+    })
   }
   const columnsFactory = (): ColumnOption<PmisDepartmentSetting>[] => [
     { type: 'globalIndex', label: '序号', width: 70, fixed: 'left' },
