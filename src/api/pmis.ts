@@ -3,7 +3,7 @@ import { loadAllLinePages } from '@/utils/business/document-detail-list'
 import type { ApiFeedbackOptions, ApiRequestOptions } from '@/types/api/request'
 import { withRequestOptions } from '@/api/providers/supabase/query'
 import dayjs from 'dayjs'
-import { omit } from 'lodash-es'
+import { omit, pick } from 'lodash-es'
 import { useSupabase } from '@/hooks/core/useSupabase'
 import TreeUtils from '@/utils/tree'
 import { resolveTenantScopeId } from '@/utils/tenant-scope-context'
@@ -30,6 +30,24 @@ import type {
 export { analyzePmisTasks, summarizePmisTasks } from '../domain/task-analysis'
 
 const { supabase, keysToSnakeDeep, responseHandle } = useSupabase()
+const planPayloadKeys = [
+  'tenantId',
+  'planKind',
+  'planName',
+  'frequency',
+  'frequencyValue',
+  'advanceDays',
+  'requiredDays',
+  'holidayPolicy',
+  'notificationRules',
+  'requirePhoto',
+  'sopFiles',
+  'status',
+  'remark',
+  'items',
+  'equipmentIds',
+  'responsibleEmployeeIds'
+] as const satisfies readonly (keyof PmisPlanInput)[]
 const snapshotPageSize = 500
 
 const equipmentSelect = `
@@ -208,17 +226,21 @@ export async function fetchPmisPlans(
   return { data: result.data ?? [], total: result.total ?? 0 }
 }
 
-export async function savePmisPlan(input: PmisPlanInput, id?: string) {
+export async function savePmisPlan(
+  input: PmisPlanInput,
+  id?: string,
+  feedback: ApiFeedbackOptions = {}
+) {
   await responseHandle<string>(
     () =>
       supabase.rpc('pmis_save_plan_secure', {
         p_id: id ?? null,
-        p_payload: keysToSnakeDeep(omit(input, ['id']))
+        p_payload: keysToSnakeDeep(pick(input, planPayloadKeys))
       }),
     {
       breakReturn: true,
-      showMessage: true,
-      showErrorMessage: true,
+      showMessage: feedback.showMessage ?? true,
+      showErrorMessage: feedback.showErrorMessage ?? true,
       message: id ? '方案已更新' : '方案已创建',
       errorMessage: '方案保存失败，请检查名称、项目和适用设备'
     }

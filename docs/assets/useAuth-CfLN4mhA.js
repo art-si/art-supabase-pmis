@@ -1,0 +1,1 @@
+import{Gt as e,R as t,b as n,r}from"./sys-CGkOLMvu.js";var i=()=>{let{isFrontendMode:i}=n(),a=r(),o=t(),{info:s,isPlatformSuper:c}=e(a),{buttonList:l}=e(o),u=()=>s.value.buttons??[],d=()=>Array.isArray(l.value)?l.value:[],f=e=>c.value?!0:i.value?u().includes(e):d().some(t=>t?.name===e);return{hasAuth:f,hasAnyAuth:e=>e.some(f),hasAllAuth:e=>e.every(f)}};export{i as t};

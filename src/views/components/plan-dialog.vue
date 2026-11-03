@@ -1,5 +1,10 @@
 <template>
-  <ArtDialog ref="dialogRef" size="xl" content-height="min(620px, 70vh)">
+  <ArtDialog
+    ref="dialogRef"
+    size="xl"
+    content-height="min(620px, 70vh)"
+    :confirm-disabled="!formRef?.readyToSubmit"
+  >
     <div class="pmis-plan-dialog min-w-0">
       <ArtEntitySummary spaced>
         <template #icon><ArtSvgIcon :icon="config.icon" /></template>
@@ -14,6 +19,7 @@
         v-model="form"
         :items="formItems"
         :rules="rules"
+        tenant-scope-mode="manual"
         :span="12"
         :gutter="22"
         label-position="top"
@@ -38,8 +44,12 @@
 <script setup lang="ts">
   import { validateArtFormForSubmit } from '@/utils/form/validate-art-form'
   import { notifyFriendlyError } from '@/hooks/core/useArtFeedback'
+  import { useAuth } from '@/hooks/core/useAuth'
+  import { useTenantOperationGuard } from '@/hooks/core/useTenantOperationGuard'
+  import { useArtOverlaySession } from '@/hooks/core/useArtOverlay'
   import { normalizeNullableText } from '@/utils/form/normalize'
   import { ElMessage, type FormRules } from 'element-plus'
+  import { unref } from 'vue'
   import { cloneDeep } from 'lodash-es'
   import type { EmployeeIntegrationItem } from '@/api/integration/employees'
   import ArtDialog from '@/components/core/dialogs/art-dialog/index.vue'
@@ -47,6 +57,8 @@
   import ArtForm, { type FormItem } from '@/components/core/forms/art-form/index.vue'
   import ArtSvgIcon from '@/components/core/base/art-svg-icon/index.vue'
   import { useUserStore } from '@/store/modules/user'
+  import { useTenantScopeStore } from '@/store/modules/tenant-scope'
+  import { resolveTenantWriteTargetId } from '@/utils/tenant-scope-context'
   import {
     savePmisPlan,
     type PmisEquipmentOption,
@@ -58,6 +70,7 @@
   import PmisEquipmentSelect from './equipment-select.vue'
   import PmisPlanItemEditor from './plan-item-editor.vue'
   import { pmisKindConfig } from './business-config'
+  import { pmisPlanPermissions } from './business-permissions'
 
   export interface PmisPlanDialogOpenData {
     kind: PmisPlanKind
@@ -77,10 +90,23 @@
     clearValidate: () => void
   }
 
+  const props = defineProps<{ workspaceKind: PmisPlanKind }>()
   const emit = defineEmits<{ success: [] }>()
   const userStore = useUserStore()
+  const tenantScopeStore = useTenantScopeStore()
+  const { hasAuth } = useAuth()
+  const captureOperation = useTenantOperationGuard()
   const { getDictMap } = storeToRefs(userStore)
   const dialogRef = ref<ArtDialogExpose<PmisPlanDialogOpenData>>()
+  const session = useArtOverlaySession(() => Boolean(unref(dialogRef.value?.visible)))
+  watch(
+    () => props.workspaceKind,
+    () => {
+      session.invalidate()
+      void dialogRef.value?.handleClose(true)
+    },
+    { flush: 'sync' }
+  )
   const formRef = ref<InstanceType<typeof ArtForm>>()
   const activeTab = ref('basicSection')
   const itemEditorRef = ref<PlanItemEditorExpose>()
@@ -174,7 +200,8 @@
       label: '执行频次',
       key: 'frequency',
       type: 'select',
-      options: dictOptions('pmisPlanFrequency')
+      options: dictOptions('pmisPlanFrequency'),
+      props: { onChange: normalizeFrequencyValue }
     },
     ...(frequencyValueItem.value ? [frequencyValueItem.value] : []),
     {
@@ -274,7 +301,6 @@
     }
     form.value.frequencyValue = defaults[form.value.frequency] ?? null
   }
-  watch(() => form.value.frequency, normalizeFrequencyValue)
   watch(
     () => form.value.tenantId,
     (value, previousValue) => {
@@ -287,46 +313,89 @@
   )
 
   const handleSubmit = async (): Promise<boolean> => {
+    const operationCurrent = captureOperation()
+    const requestVersion = session.version.value
+    const recordId = form.value.id
+    const targetTenantId = form.value.tenantId
+    const planKind = kind.value
+    const permission = recordId
+      ? pmisPlanPermissions[planKind].edit
+      : pmisPlanPermissions[planKind].add
+    const isCurrentContext = () =>
+      operationCurrent() &&
+      session.isCurrent(requestVersion) &&
+      form.value.id === recordId &&
+      form.value.tenantId === targetTenantId &&
+      kind.value === planKind &&
+      props.workspaceKind === planKind
+    const isCurrent = () => isCurrentContext() && hasAuth(permission)
+    if (!isCurrentContext()) return false
+    if (!hasAuth(permission)) {
+      ElMessage.error('当前账号无权保存该方案，请刷新权限后重试')
+      return false
+    }
     try {
       if (!(await validateArtFormForSubmit(formRef.value))) return false
+      if (!isCurrent()) return false
       const itemValidation = await itemEditorRef.value?.validate({ focus: false })
+      if (!isCurrent()) return false
       if (itemValidation && !itemValidation.valid) {
         activeTab.value = 'itemSection'
         await nextTick()
+        if (!isCurrent()) return false
         await itemEditorRef.value?.validate()
+        if (!isCurrent()) return false
         if (itemValidation.firstError) ElMessage.warning(itemValidation.firstError.message)
         return false
       }
     } catch (error) {
-      notifyFriendlyError(error, '计划校验未完成，请稍后重试', 'warning')
+      if (isCurrent()) notifyFriendlyError(error, '计划校验未完成，请稍后重试', 'warning')
       return false
     }
 
     try {
-      await savePmisPlan(
-        {
-          ...cloneDeep(form.value),
-          planName: form.value.planName.trim(),
-          remark: form.value.remark?.trim(),
-          sopFiles: form.value.sopUrl ? [form.value.sopUrl] : [],
-          items: form.value.items.map((item, index) => ({
-            ...item,
-            itemName: item.itemName.trim(),
-            requirement: item.requirement.trim(),
-            judgmentRule: normalizeNullableText(item.judgmentRule),
-            sort: (index + 1) * 10
-          }))
-        },
-        form.value.id
-      )
+      const resolvedTenantId = resolveTenantWriteTargetId({
+        explicitTenantId: targetTenantId,
+        effectiveTenantId: tenantScopeStore.effectiveTenantId,
+        actorTenantId: userStore.getUserInfo.tenantId,
+        canWriteToOtherTenant: userStore.isPlatformSuper
+      })
+      if (resolvedTenantId !== targetTenantId) throw new Error('目标租户已变化，请重新选择后保存')
+    } catch (error) {
+      if (isCurrent()) notifyFriendlyError(error, '目标租户无效，请刷新后重试', 'warning')
+      return false
+    }
+
+    try {
+      const preparedPayload: PmisPlanInput = {
+        ...cloneDeep(form.value),
+        planName: form.value.planName.trim(),
+        remark: form.value.remark?.trim(),
+        sopFiles: form.value.sopUrl ? [form.value.sopUrl] : [],
+        items: form.value.items.map((item, index) => ({
+          ...item,
+          itemName: item.itemName.trim(),
+          requirement: item.requirement.trim(),
+          judgmentRule: normalizeNullableText(item.judgmentRule),
+          sort: (index + 1) * 10
+        }))
+      }
+      if (!isCurrent()) return false
+      await savePmisPlan(preparedPayload, recordId, {
+        showMessage: false,
+        showErrorMessage: false
+      })
+      if (!isCurrent()) return false
+      ElMessage.success(recordId ? '方案已更新' : '方案已创建')
       emit('success')
       return true
     } catch (error) {
-      notifyFriendlyError(error, '计划保存失败，请检查项目和网络后重试')
+      if (isCurrent()) notifyFriendlyError(error, '方案保存失败，请检查名称、项目和适用设备')
       return false
     }
   }
   const handleOpen = async (data: PmisPlanDialogOpenData): Promise<void> => {
+    const requestVersion = session.invalidate()
     activeTab.value = 'basicSection'
     kind.value = data.kind
     tenantOptions.value = data.tenantOptions
@@ -369,15 +438,27 @@
               userStore.ensureDictLoaded(code)
             )
           )
+          if (!session.isCurrent(requestVersion)) return
           await nextTick()
+          if (!session.isCurrent(requestVersion)) return
           formRef.value?.clearValidate()
           itemEditorRef.value?.clearValidate()
         } finally {
-          api.setLoading(false)
+          if (session.isCurrent(requestVersion)) api.setLoading(false)
         }
+      },
+      onClose: (): void => {
+        session.invalidate()
+      },
+      onReset: (): void => {
+        session.invalidate()
       },
       onConfirm: handleSubmit
     })
   }
+  onDeactivated(() => {
+    session.invalidate()
+    void dialogRef.value?.handleClose(true)
+  })
   defineExpose({ handleOpen })
 </script>

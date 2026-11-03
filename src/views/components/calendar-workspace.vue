@@ -383,7 +383,7 @@
         id,
         item: value.item,
         identity: value.item.itemName,
-        secondary: `${value.item.requirement}（${filtered.find((task) => task.plan.items.some((item) => item.id === value.item.id))?.plan.planName || `${kindLabel.value}方案`}）`,
+        secondary: `${value.item.requirement}（${value.tasks[0]?.plan.planName || `${kindLabel.value}方案`}）`,
         tasksByDate: Object.fromEntries(
           days.value.map((date) => [date, pickTask(byDate[date] ?? [])])
         )

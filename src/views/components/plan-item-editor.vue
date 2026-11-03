@@ -60,7 +60,7 @@
   const clearValidate = (): void => tableRef.value?.clearValidate()
   const moveItem = (index: number, offset: number): void => {
     const target = index + offset
-    if (target < 0 || target >= props.modelValue.length) return
+    if (index < 0 || target < 0 || target >= props.modelValue.length) return
     const next = [...props.modelValue]
     ;[next[index], next[target]] = [next[target], next[index]]
     emit(

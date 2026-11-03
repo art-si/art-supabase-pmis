@@ -24,6 +24,7 @@
       :columns-factory="columnsFactory"
       :search-items="searchItems"
       :header-actions="headerActions"
+      :import-context-key="importContextVersion"
       header-actions-placement="workspace"
       :excel-columns="excelColumns"
       :search-bar-props="{ span: 8, labelWidth: 72, showExpand: false, isExpand: true }"
@@ -36,7 +37,7 @@
       show-focus-mode
     />
 
-    <PmisPlanDialog ref="dialogRef" @success="refresh" />
+    <PmisPlanDialog ref="dialogRef" :workspace-kind="props.kind" @success="refresh" />
     <ArtDrawer ref="drawerRef" :title="`${kindLabel}方案详情`" size="lg">
       <PmisDetailDrawerSections v-if="detailRow">
         <ArtSectionCard title="方案摘要" subtitle="执行节奏与责任范围">
@@ -73,6 +74,11 @@
 
   import { createDateTimeFormatter } from '@/utils/ui/format'
   import { compact, uniq } from 'lodash-es'
+  import { ElMessage } from 'element-plus'
+  import { getFriendlySupabaseErrorMessage, markErrorAsUserNotified } from '@/utils/supabase'
+  import { notifyFriendlyError } from '@/hooks/core/useArtFeedback'
+  import { useTenantOperationGuard } from '@/hooks/core/useTenantOperationGuard'
+  import { resolveTenantWriteTargetId } from '@/utils/tenant-scope-context'
 
   import BusinessTableRowActions from '@/components/business/business-table-row-actions/index.vue'
   import ArtButtonMore, {
@@ -105,6 +111,7 @@
     savePmisPlan,
     type PmisPlan,
     type PmisPlanFrequency,
+    type PmisPlanInput,
     type PmisPlanKind
   } from '@pmis/api'
   import PmisPlanDialog, { type PmisPlanDialogOpenData } from './plan-dialog.vue'
@@ -125,6 +132,7 @@
   }
 
   const { hasAuth } = useAuth()
+  const captureOperation = useTenantOperationGuard()
   const tenantScopeStore = useTenantScopeStore()
   const { effectiveTenantId, tenantOptions } = storeToRefs(tenantScopeStore)
   const userStore = useUserStore()
@@ -148,6 +156,27 @@
     ['maintenance', 'preventive'].includes(props.kind) ? '作业项目' : '检查项目'
   )
   const permissions = computed(() => pmisPlanPermissions[props.kind])
+  const route = useRoute()
+  const importContextVersion = ref(0)
+  watch(
+    () => [
+      route.fullPath,
+      props.kind,
+      tenantScopeStore.revision,
+      effectiveTenantId.value,
+      userStore.getUserInfo.userId,
+      userStore.getUserInfo.tenantId,
+      userStore.isPlatformSuper,
+      hasAuth(permissions.value.import)
+    ],
+    () => {
+      importContextVersion.value += 1
+    },
+    { flush: 'sync' }
+  )
+  onDeactivated(() => {
+    importContextVersion.value += 1
+  })
   const description = computed(() => config.value.description)
   const enabledCount = computed(() => rows.value.filter((row) => row.status === 'enabled').length)
   const boundEquipmentCount = computed(() => {
@@ -218,10 +247,16 @@
     }
   )
   const dialogData = (row?: PmisPlan, copy = false): PmisPlanDialogOpenData => {
-    const targetTenantId = row?.tenantId || effectiveTenantId.value || undefined
-    const availableTenants = targetTenantId
-      ? tenantOptions.value.filter((item) => item.id === targetTenantId)
-      : tenantOptions.value
+    const targetTenantId = resolveTenantWriteTargetId({
+      explicitTenantId: row?.tenantId,
+      effectiveTenantId: effectiveTenantId.value,
+      actorTenantId: userStore.getUserInfo.tenantId,
+      canWriteToOtherTenant: userStore.isPlatformSuper
+    })
+    const availableTenants =
+      row || effectiveTenantId.value
+        ? tenantOptions.value.filter((item) => item.id === targetTenantId)
+        : tenantOptions.value
     return {
       kind: props.kind,
       row,
@@ -233,8 +268,21 @@
       }))
     }
   }
-  const openDialog = (row?: PmisPlan, copy = false): void =>
-    void dialogRef.value?.handleOpen(dialogData(row, copy))
+  const openDialog = async (row?: PmisPlan, copy = false): Promise<void> => {
+    const isCurrent = captureOperation()
+    const contextVersion = importContextVersion.value
+    const permission = copy
+      ? permissions.value.copy
+      : row
+        ? permissions.value.edit
+        : permissions.value.add
+    try {
+      await dialogRef.value?.handleOpen(dialogData(row, copy))
+    } catch (error) {
+      if (isCurrent() && importContextVersion.value === contextVersion && hasAuth(permission))
+        notifyFriendlyError(error, '无法打开方案，请刷新后重试')
+    }
+  }
   const refresh = (): void => void tableRef.value?.refreshData()
   const showDetail = async (row: PmisPlan): Promise<void> => {
     detailRow.value = row
@@ -278,58 +326,129 @@
     每年: 'yearly'
   }
   const importRows = async (importedRows: Record<string, unknown>[]): Promise<void> => {
-    for (const [index, row] of importedRows.entries()) {
-      const tenantSource = String(row['目标租户'] || row['租户'] || '').trim()
-      const matchedTenant = tenantOptions.value.find(
-        (item) =>
-          item.id === tenantSource ||
-          item.tenantCode === tenantSource ||
-          item.tenantName === tenantSource
-      )
-      const targetTenantId =
-        effectiveTenantId.value ||
-        (tenantOptions.value.length === 1 ? tenantOptions.value[0]?.id : matchedTenant?.id)
-      if (!targetTenantId)
-        throw new Error(
-          `第 ${index + 2} 行缺少有效的目标租户；全部租户范围导入时请填写“目标租户”列`
+    const operationCurrent = captureOperation()
+    const importKind = props.kind
+    const importKindVersion = importContextVersion.value
+    const permission = pmisPlanPermissions[importKind].import
+    const actorTenantId = userStore.getUserInfo.tenantId
+    const scopeTenantId = effectiveTenantId.value
+    const canWriteToOtherTenant = userStore.isPlatformSuper
+    const availableTenants = tenantOptions.value.map((item) => ({ ...item }))
+    const isCurrentContext = () =>
+      operationCurrent() &&
+      props.kind === importKind &&
+      importContextVersion.value === importKindVersion &&
+      userStore.getUserInfo.tenantId === actorTenantId &&
+      userStore.isPlatformSuper === canWriteToOtherTenant
+    const isCurrent = () => isCurrentContext() && hasAuth(permission)
+    if (!isCurrentContext()) return
+    if (!hasAuth(permission)) throw new Error('当前账号无权导入该方案，请刷新权限后重试')
+    let submittedCount = 0
+    try {
+      const inputs: PmisPlanInput[] = []
+      for (const [index, row] of importedRows.entries()) {
+        if (!isCurrent()) return
+        const tenantSource = String(row['目标租户'] || row['租户'] || '').trim()
+        const matchedTenant = availableTenants.find(
+          (item) =>
+            item.id === tenantSource ||
+            item.tenantCode === tenantSource ||
+            item.tenantName === tenantSource
         )
-      const planName = String(row['方案名称'] || '').trim()
-      const itemName = String(
-        row['检查内容'] || row['点检内容'] || row['巡检内容'] || '基础检查'
-      ).trim()
-      const requirement = String(row['检查要求'] || row['检查标准'] || '按设备标准完成检查').trim()
-      const frequencySource = String(row['频次'] || row['执行频次'] || 'daily').trim()
-      const frequency = frequencyMap[frequencySource]
-      if (!planName) throw new Error(`第 ${index + 2} 行缺少方案名称`)
-      if (!frequency) throw new Error(`第 ${index + 2} 行执行频次无效`)
+        const explicitTenantId = tenantSource
+          ? matchedTenant?.id || (tenantSource === actorTenantId ? actorTenantId : undefined)
+          : undefined
+        if (tenantSource && !explicitTenantId)
+          throw new Error(`第 ${index + 2} 行目标租户无效或不在可选范围内`)
+        let targetTenantId: string
+        try {
+          targetTenantId = resolveTenantWriteTargetId({
+            explicitTenantId,
+            effectiveTenantId: scopeTenantId,
+            actorTenantId,
+            canWriteToOtherTenant
+          })
+        } catch (error) {
+          throw new Error(
+            `第 ${index + 2} 行：${getFriendlySupabaseErrorMessage(error, '目标租户无效')}`,
+            { cause: error }
+          )
+        }
+        const planName = String(row['方案名称'] || '').trim()
+        const itemName = String(
+          row['检查内容'] || row['点检内容'] || row['巡检内容'] || '基础检查'
+        ).trim()
+        const requirement = String(
+          row['检查要求'] || row['检查标准'] || '按设备标准完成检查'
+        ).trim()
+        const frequencySource = String(row['频次'] || row['执行频次'] || 'daily').trim()
+        const frequency = Object.hasOwn(frequencyMap, frequencySource)
+          ? frequencyMap[frequencySource]
+          : undefined
+        if (!planName) throw new Error(`第 ${index + 2} 行缺少方案名称`)
+        if (!frequency) throw new Error(`第 ${index + 2} 行执行频次无效`)
+        const durationSource = row['完成时长（天）']
+        const requiredDays =
+          durationSource === null ||
+          durationSource === undefined ||
+          String(durationSource).trim() === ''
+            ? 1
+            : Number(durationSource)
+        if (!Number.isInteger(requiredDays) || requiredDays < 1 || requiredDays > 365)
+          throw new Error(`第 ${index + 2} 行完成时长必须是 1—365 的整数天`)
 
-      await savePmisPlan({
-        tenantId: targetTenantId,
-        planKind: props.kind,
-        planName,
-        frequency,
-        frequencyValue: null,
-        advanceDays: 0,
-        requiredDays: Math.max(Number(row['完成时长（天）'] || 1), 1),
-        holidayPolicy: 'postpone',
-        notificationRules: [],
-        requirePhoto: false,
-        sopFiles: [],
-        status: 'disabled',
-        remark: String(row['方案说明'] || 'Excel 导入；请绑定设备和负责人后启用'),
-        items: [
-          {
-            itemName,
-            requirement,
-            judgmentRule: String(row['判定规则'] || ''),
-            requirePhoto: false,
-            sort: 10
-          }
-        ],
-        equipmentIds: [],
-        responsibleEmployeeIds: []
-      })
+        inputs.push({
+          tenantId: targetTenantId,
+          planKind: importKind,
+          planName,
+          frequency,
+          frequencyValue: null,
+          advanceDays: 0,
+          requiredDays,
+          holidayPolicy: 'postpone',
+          notificationRules: [],
+          requirePhoto: false,
+          sopFiles: [],
+          status: 'disabled',
+          remark: String(row['方案说明'] || 'Excel 导入；请绑定设备和负责人后启用'),
+          items: [
+            {
+              itemName,
+              requirement,
+              judgmentRule: String(row['判定规则'] || ''),
+              requirePhoto: false,
+              sort: 10
+            }
+          ],
+          equipmentIds: [],
+          responsibleEmployeeIds: []
+        })
+      }
+      for (const input of inputs) {
+        if (!isCurrent()) return
+        await savePmisPlan(input, undefined, {
+          showMessage: false,
+          showErrorMessage: false
+        })
+        submittedCount += 1
+        if (!isCurrent()) return
+      }
+    } catch (error) {
+      if (isCurrent()) {
+        if (submittedCount) {
+          const partialError = new Error(
+            `已导入 ${submittedCount} 条方案，其余未完成；请刷新核对结果后重试`,
+            { cause: error }
+          )
+          ElMessage.error(partialError.message)
+          throw markErrorAsUserNotified(partialError)
+        }
+        throw error
+      }
+      return
     }
+    if (!isCurrent() || !importedRows.length) return
+    ElMessage.success('方案导入完成')
     refresh()
   }
   const moreActions = (): ButtonMoreItem[] => [
