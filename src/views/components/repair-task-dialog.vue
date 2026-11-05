@@ -35,6 +35,7 @@
   import ArtSvgIcon from '@/components/core/base/art-svg-icon/index.vue'
   import type { EmployeeIntegrationItem } from '@/api/integration/employees'
   import { useUserStore } from '@/store/modules/user'
+  import { useTenantScopeFormPolicy } from '@/hooks/core/useTenantScopeFormPolicy'
   import {
     savePmisRepairTask,
     type PmisRepairStatus,
@@ -67,6 +68,7 @@
   }
   const emit = defineEmits<{ success: [] }>()
   const userStore = useUserStore()
+  const { defaultWriteTenantId } = useTenantScopeFormPolicy()
   const { getDictMap } = storeToRefs(userStore)
   const dialogRef = ref<ArtDialogExpose<RepairDialogOpenData>>()
   const formRef = ref<InstanceType<typeof ArtForm>>()
@@ -231,7 +233,9 @@
   }
   const handleOpen = async (data: RepairDialogOpenData) => {
     activeTab.value = 'report'
-    Object.assign(form.value, initial(), { tenantId: data.tenantId || '' })
+    Object.assign(form.value, initial(), {
+      tenantId: data.tenantId || defaultWriteTenantId.value || ''
+    })
     selectedEquipment.value = []
     selectedReporters.value = []
     selectedRepairers.value = []

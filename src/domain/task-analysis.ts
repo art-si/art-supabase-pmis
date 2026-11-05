@@ -2,7 +2,7 @@ import { groupBy, uniqBy } from 'lodash-es'
 import type { PmisAnalysisItem, PmisTask, PmisTaskOverview } from '../api/types'
 
 export function summarizePmisTasks(tasks: PmisTask[]): PmisTaskOverview {
-  const completed = tasks.filter((item) => item.displayStatus === 'completed').length
+  const completed = tasks.filter((item) => item.status === 'completed').length
   const pending = tasks.filter((item) => item.displayStatus === 'pending').length
   const overdue = tasks.filter((item) => item.displayStatus === 'overdue').length
   const exempt = tasks.filter((item) => item.displayStatus === 'exempt').length

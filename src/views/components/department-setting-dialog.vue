@@ -26,6 +26,7 @@
   import type { FormRules } from 'element-plus'
   import { notifyFriendlyError } from '@/hooks/core/useArtFeedback'
   import { useTenantScopeStore } from '@/store/modules/tenant-scope'
+  import { useTenantScopeFormPolicy } from '@/hooks/core/useTenantScopeFormPolicy'
   import ArtDialog from '@/components/core/dialogs/art-dialog/index.vue'
   import type { ArtDialogExpose } from '@/components/core/dialogs/art-dialog/types'
   import ArtForm, { type FormItem } from '@/components/core/forms/art-form/index.vue'
@@ -64,6 +65,7 @@
   }
   const emit = defineEmits<{ success: [] }>()
   const userStore = useUserStore()
+  const { defaultWriteTenantId } = useTenantScopeFormPolicy()
   const tenantScopeStore = useTenantScopeStore()
   const { getDictMap } = storeToRefs(userStore)
   const dialogRef = ref<ArtDialogExpose<SettingDialogOpenData>>()
@@ -291,7 +293,9 @@
     const controller = new AbortController()
     loadController = controller
     kind.value = data.kind
-    Object.assign(form.value, initial(), { tenantId: data.tenantId || '' })
+    Object.assign(form.value, initial(), {
+      tenantId: data.tenantId || defaultWriteTenantId.value || ''
+    })
     selectedResponsible.value = []
     selectedConfirmers.value = []
     selectedRepairers.value = []

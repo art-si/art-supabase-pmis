@@ -203,27 +203,29 @@
     {
       label: '任务总数',
       value: metricsReady.value ? total.value : '—',
-      description: departmentLabel.value,
+      description: `${departmentLabel.value} · 全部结果`,
       icon: 'ri:file-list-3-line'
     },
     {
-      label: '已完成',
+      label: '本页已完成',
       value: metricsReady.value ? overview.value.completed : '—',
-      description: metricsReady.value ? `完成率 ${overview.value.completionRate}%` : '完成率 —',
+      description: metricsReady.value
+        ? `本页完成率 ${overview.value.completionRate}%`
+        : '本页完成率 —',
       icon: 'ri:checkbox-circle-line',
       tone: 'success'
     },
     {
-      label: '计划中',
+      label: '本页计划中',
       value: metricsReady.value ? overview.value.pending : '—',
-      description: '尚未到期',
+      description: '本页尚未到期',
       icon: 'ri:time-line',
       tone: 'warning'
     },
     {
-      label: '已延误',
+      label: '本页已延误',
       value: metricsReady.value ? overview.value.overdue : '—',
-      description: '需要优先处理',
+      description: '本页需要优先处理',
       icon: 'ri:alarm-warning-line',
       tone: metricsReady.value && overview.value.overdue ? 'danger' : 'info'
     }
