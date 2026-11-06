@@ -28,6 +28,7 @@
 <script setup lang="ts">
   import { normalizeNullableText } from '@/utils/form/normalize'
   import type { FormRules } from 'element-plus'
+  import dayjs from 'dayjs'
   import { notifyFriendlyError } from '@/hooks/core/useArtFeedback'
   import { useTenantScopeStore } from '@/store/modules/tenant-scope'
   import ArtDialog from '@/components/core/dialogs/art-dialog/index.vue'
@@ -83,7 +84,7 @@
     tenantId: '',
     planId: '',
     equipmentId: undefined,
-    plannedDate: new Date().toISOString().slice(0, 10),
+    plannedDate: dayjs().format('YYYY-MM-DD'),
     responsibleId: undefined,
     executionSummary: ''
   })
