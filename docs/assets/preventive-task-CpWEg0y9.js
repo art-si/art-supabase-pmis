@@ -1,0 +1,1 @@
+import{Jn as e,nr as t,xr as n}from"./supabase-JwnnQIVP.js";import{t as r}from"./task-workspace-Cyj2dHjl.js";var i=t({__name:`index`,setup(t){return(t,i)=>(n(),e(r,{kind:`preventive`,mode:`task`}))}});export{i as default};

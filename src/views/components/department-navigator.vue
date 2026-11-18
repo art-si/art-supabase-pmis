@@ -31,6 +31,7 @@
         type="button"
         class="pmis-department-navigator__all"
         :class="{ 'is-active': !activeId }"
+        :aria-pressed="!activeId"
         @click="clear"
       >
         <span class="art-icon-label"><ArtSvgIcon icon="ri:apps-2-line" />全部产线</span>
@@ -41,12 +42,14 @@
     <ElTree
       ref="treeRef"
       :data="tree"
+      aria-label="部门与产线树"
       node-key="id"
       :props="{ label: 'departmentName', children: 'children' }"
       :current-node-key="activeId || undefined"
       default-expand-all
       highlight-current
       :expand-on-click-node="false"
+      @keydown.capture="handleSelectableTreeKeydown"
       @node-click="selectNode"
     >
       <template #default="{ data }">
@@ -74,17 +77,16 @@
   import ArtSectionCard from '@/components/core/surfaces/art-section-card/index.vue'
   import ArtIconButton from '@/components/core/widget/art-icon-button/index.vue'
   import ArtSvgIcon from '@/components/core/base/art-svg-icon/index.vue'
+  import { handleSelectableTreeKeydown } from '@/utils/ui/selection-tree-keyboard'
   import { useTenantScopeStore } from '@/store/modules/tenant-scope'
   import { fetchPmisDepartmentTree, type PmisDepartmentTreeOption } from '@pmis/api'
-
-  type TreeNode = PmisDepartmentTreeOption
 
   const emit = defineEmits<{ change: [ids: string[], label: string] }>()
   const treeRef = ref<InstanceType<typeof ElTree>>()
   const loading = ref(false)
   const error = ref('')
   const activeId = ref('')
-  const tree = shallowRef<TreeNode[]>([])
+  const tree = shallowRef<PmisDepartmentTreeOption[]>([])
   const tenantScopeStore = useTenantScopeStore()
   const treeUtils = new TreeUtils({ idKey: 'id', parentKey: 'parentId', childrenKey: 'children' })
   const departmentCount = computed(() => treeUtils.treeToList(tree.value).length)
@@ -118,11 +120,11 @@
     treeRef.value?.setCurrentKey(undefined)
     emit('change', [], '全部产线')
   }
-  const selectNode = (node: TreeNode): void => {
+  const selectNode = (node: PmisDepartmentTreeOption): void => {
     activeId.value = node.id
     emit(
       'change',
-      treeUtils.treeToList([node]).map((item) => String(item.id)),
+      treeUtils.treeToList([node]).map(({ id }) => id),
       node.departmentName
     )
   }
@@ -160,9 +162,7 @@
         background-color 0.18s ease;
 
       > span {
-        display: inline-flex;
-        gap: var(--art-space-2);
-        align-items: center;
+        justify-content: flex-start;
       }
 
       > strong {

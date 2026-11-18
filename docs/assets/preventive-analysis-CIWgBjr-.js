@@ -1,0 +1,1 @@
+import{Jn as e,nr as t,xr as n}from"./supabase-JwnnQIVP.js";import{t as r}from"./analysis-workspace-O-1ugn0B.js";var i=t({__name:`index`,setup(t){return(t,i)=>(n(),e(r,{kind:`preventive`}))}});export{i as default};

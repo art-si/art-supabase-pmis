@@ -1,0 +1,1 @@
+import{At as e,Ot as t}from"./sys-upuyzLTv.js";var n=(n,r)=>(r?.readTenantId!==void 0&&(r.readTenantId!==null&&t(r.readTenantId),n=n.setHeader(e(),r.readTenantId??``)),r?.signal?n.abortSignal(r.signal):n);export{n as t};
