@@ -207,29 +207,38 @@
     reporterId: [{ required: true, message: '请选择报修人', trigger: 'change' }],
     faultSymptom: [{ required: true, message: '请输入故障现象', trigger: 'blur' }]
   }
-  const submit = async () => {
+  const submit = async (
+    _openData: RepairDialogOpenData,
+    api: ArtDialogExpose<RepairDialogOpenData>
+  ): Promise<boolean> => {
     await formRef.value?.validate()
     if (!form.value.equipmentId || !form.value.reporterId) return false
-    await savePmisRepairTask(
-      {
-        tenantId: form.value.tenantId || undefined,
-        equipmentId: form.value.equipmentId,
-        urgency: form.value.urgency,
-        faultSymptom: form.value.faultSymptom.trim(),
-        faultPhotoFiles: form.value.faultPhotoFiles,
-        reporterEmployeeId: form.value.reporterId,
-        repairerEmployeeId: form.value.repairerId || null,
-        confirmerEmployeeId: form.value.confirmerId || null,
-        faultAnalysis: normalizeNullableText(form.value.faultAnalysis),
-        faultCause: normalizeNullableText(form.value.faultCause),
-        solution: normalizeNullableText(form.value.solution),
-        repairPhotoFiles: form.value.repairPhotoFiles,
-        status: form.value.status
-      },
-      form.value.id
-    )
-    emit('success')
-    return true
+    api.setOptions({ loadingText: '正在保存维修工单…' })
+    api.setLoading(true)
+    try {
+      await savePmisRepairTask(
+        {
+          tenantId: form.value.tenantId || undefined,
+          equipmentId: form.value.equipmentId,
+          urgency: form.value.urgency,
+          faultSymptom: form.value.faultSymptom.trim(),
+          faultPhotoFiles: form.value.faultPhotoFiles,
+          reporterEmployeeId: form.value.reporterId,
+          repairerEmployeeId: form.value.repairerId || null,
+          confirmerEmployeeId: form.value.confirmerId || null,
+          faultAnalysis: normalizeNullableText(form.value.faultAnalysis),
+          faultCause: normalizeNullableText(form.value.faultCause),
+          solution: normalizeNullableText(form.value.solution),
+          repairPhotoFiles: form.value.repairPhotoFiles,
+          status: form.value.status
+        },
+        form.value.id
+      )
+      emit('success')
+      return true
+    } finally {
+      api.setLoading(false)
+    }
   }
   const handleOpen = async (data: RepairDialogOpenData) => {
     activeTab.value = 'report'
